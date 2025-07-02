@@ -1,0 +1,28 @@
+# Serverless programs configuration for production
+# Maps unique IDs to script and bot paths
+
+scripts:
+  example_script:
+    id: "example_script"
+    name: "Example Script"
+    path: "scripts/example_script"
+    description: "Example script for production"
+    enabled: true
+    main_file: "main.py"
+
+bots:
+  example_bot:
+    id: "example_bot"
+    name: "Example Bot"
+    path: "bots/example_bot"
+    description: "Example bot for production"
+    enabled: true
+    main_file: "run.py"
+
+# General system configuration
+settings:
+  docker_image: "serverless-base"
+  timeout_seconds: 300  # 5 minutes default
+  max_concurrent_executions: 5
+  memory_limit: "1g"    # Recommended: 1GB for most cases
+  cpu_limit: "0.5"      # CPU limit per container (50% of one core) 

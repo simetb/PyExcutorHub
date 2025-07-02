@@ -1,0 +1,5 @@
+# Dependencies for actions (hooks)
+# Add here the dependencies you need for your custom actions
+# Examples:
+# requests==2.31.0
+# python-dotenv==1.0.0 

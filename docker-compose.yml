@@ -1,0 +1,44 @@
+version: '3.8'
+
+services:
+  serverless-api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    container_name: serverless-docker-api
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/project:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /usr/bin/docker:/usr/bin/docker:ro
+    env_file:
+      - .env
+    environment:
+      - PYTHONUNBUFFERED=1
+      - PROJECT_DIR=/project
+    restart: unless-stopped
+    networks:
+      - serverless-network
+    # Configuración de recursos para producción
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    # Configuración de seguridad
+    security_opt:
+      - no-new-privileges:true
+    read_only: false
+    tmpfs:
+      - /tmp:noexec,nosuid,size=100m
+
+networks:
+  serverless-network:
+    driver: bridge
+    # Configuración de red para producción
+    driver_opts:
+      com.docker.network.bridge.name: serverless-br0 
