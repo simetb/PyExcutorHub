@@ -1,16 +1,17 @@
 FROM python:3.11-slim
 
-# Instalar dependencias del sistema
+# Install system dependencies
 RUN apt-get update && apt-get install -y \
     default-libmysqlclient-dev \
     gcc \
     && rm -rf /var/lib/apt/lists/*
 
-# Instalar driver de MariaDB para Python
+# Install MariaDB driver for Python or other dependencies that you need in 
 RUN pip install mariadb
 
-# Crear directorio de trabajo
+# Set working directory
 WORKDIR /workspace
 
-# Configurar entrypoint para recibir comandos dinámicos
+# Image name: pyexecutorhub-base:latest
+# Configure entrypoint for dynamic commands
 ENTRYPOINT ["/bin/bash", "-c"] 

@@ -1,11 +1,12 @@
 version: '3.8'
 
 services:
-  serverless-api:
+  pyexecutorhub-api:
     build:
       context: .
       dockerfile: Dockerfile.api
-    container_name: serverless-docker-api
+    container_name: pyexecutorhub-api
+    image: pyexecutorhub-api:latest
     ports:
       - "8000:8000"
     volumes:
@@ -19,7 +20,7 @@ services:
       - PROJECT_DIR=/project
     restart: unless-stopped
     networks:
-      - serverless-network
+      - pyexecutorhub-network
     # Configuración de recursos para producción
     deploy:
       resources:
@@ -37,8 +38,8 @@ services:
       - /tmp:noexec,nosuid,size=100m
 
 networks:
-  serverless-network:
+  pyexecutorhub-network:
     driver: bridge
     # Configuración de red para producción
     driver_opts:
-      com.docker.network.bridge.name: serverless-br0 
+      com.docker.network.bridge.name: pyexecutorhub-br0 

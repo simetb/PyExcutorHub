@@ -1,25 +1,26 @@
 FROM python:3.11-slim
 
-# Instalar dependencias del sistema
+# Install system dependencies
 RUN apt-get update && apt-get install -y \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Crear directorio de trabajo
+# Set working directory
 WORKDIR /app
 
-# Copiar archivos de dependencias
+# Copy dependency files
 COPY requirements.txt .
 
-# Instalar dependencias de Python
+# Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copiar código de la API
+# Copy API code
 COPY api.py .
 COPY config.yaml .
 
-# Exponer puerto
+# Expose port
 EXPOSE 8000
 
-# Comando para ejecutar la API
+# Image name: pyexecutorhub-api:latest
+# Run the API
 CMD ["python", "api.py"] 
