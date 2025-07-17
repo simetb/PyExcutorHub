@@ -25,6 +25,22 @@ Transform your **Python scripts and bots** into scalable, secure, and lightning-
 
 **Python Version:** This system is designed for Python 3.11, but can be adjusted by modifying the Dockerfile.
 
+## 🆕 Latest Updates (v1.0.0)
+
+### ✨ New Features & Improvements
+- **🔧 Enhanced Log Formatting**: Execution logs now display with proper line breaks for better readability
+- **⚡ Optimized API Performance**: Improved async execution handling and reduced blocking operations
+- **🛡️ Production-Ready Stability**: Fixed race conditions and improved error handling
+- **📊 Better Execution Management**: Enhanced cleanup mechanisms and execution tracking
+- **🔍 Improved Debugging**: Better logging and error reporting throughout the system
+- **🚀 Simplified Docker Configuration**: Streamlined docker-compose setup for production
+
+### 🐛 Bug Fixes
+- Fixed KeyError issues in execution tracking
+- Resolved API endpoint hanging problems
+- Eliminated deadlock scenarios in concurrent executions
+- Improved Docker command execution reliability
+
 ## 🚀 Quick Installation
 
 ```bash
@@ -63,6 +79,7 @@ The installer will:
 - **Configuration**: Programs are defined in `config.yaml`.
 - **Python-Focused**: Designed exclusively for Python scripts and bots.
 - **No GUI dependencies**: Console-only Python scripts/bots.
+- **Async Execution**: Non-blocking execution with proper resource management.
 
 ## 🚀 Installation and Configuration
 
@@ -333,14 +350,61 @@ curl -X POST http://localhost:API_PORT/execute \
 - **Parameters:** Passed as environment variables to the container with `PARAM_` prefix
 - **Timeout:** Default 300 seconds (5 minutes)
 - **Isolation:** Each Python execution runs in a separate Docker container
+- **Log Formatting:** Output and error logs are properly formatted with line breaks
+
+### GET /executions - List All Executions
+
+**Description:** Returns a list of all executions with their status and formatted logs.
+
+**URL:** `GET http://localhost:API_PORT/executions`
+
+**Response:**
+```json
+[
+  {
+    "execution_id": "uuid-string",
+    "program_id": "example_bot",
+    "status": "completed",
+    "start_time": "2025-07-17T11:21:02.135341",
+    "end_time": "2025-07-17T11:22:39.918597",
+    "output": "🚀 Bot running...\nDate and time: 2025-07-17 11:22:39.753124\nPython version: 3.11.13\nWorking directory: /workspace\n✅ Bot completed successfully!",
+    "error": null
+  }
+]
+```
+
+**Note:** Logs are now properly formatted with real line breaks for better readability.
 
 ### Other Endpoints
 
+- `GET /` - Root endpoint with system information
+- `GET /health` - System health check
+- `GET /test` - Test endpoint for basic functionality
 - `GET /programs` - List available Python programs
-- `GET /executions` - List executions
-- `GET /executions/{execution_id}` - Execution status
-- `GET /executions/stats` - Statistics
-- `GET /health` - System health
+- `GET /executions/{execution_id}` - Get specific execution status
+- `GET /executions/stats` - Execution statistics
+- `GET /executions/info` - Information about execution storage
+- `DELETE /executions/cleanup` - Clean up finished executions
+- `DELETE /executions/manual_cleanup` - Manual cleanup endpoint
+
+## 📊 Log Management
+
+### Enhanced Log Formatting
+- **Real Line Breaks**: Logs now display with proper line breaks instead of `\n` characters
+- **Readable Output**: Both `output` and `error` fields are formatted for human readability
+- **Consistent Formatting**: All execution logs follow the same formatting standards
+
+### Viewing Formatted Logs
+```bash
+# View logs with proper formatting using jq
+curl -s http://localhost:8000/executions | jq -r '.[0].output'
+
+# View logs in a pager
+curl -s http://localhost:8000/executions | jq -r '.[0].output' | less
+
+# View error logs
+curl -s http://localhost:8000/executions | jq -r '.[0].error'
+```
 
 ## 🛡️ Security
 
@@ -353,24 +417,93 @@ curl -X POST http://localhost:API_PORT/execute \
 
 ## 📊 Monitoring and Maintenance
 
-- View logs: `docker compose logs -f serverless-api`
-- Clean old executions: `curl -X DELETE http://localhost:$API_PORT/executions/cleanup`
-- Restart service: `docker compose restart serverless-api`
-- Configuration backup: `cp config.yaml config.yaml.backup.$(date +%Y%m%d)`
+### System Health
+```bash
+# Check API health
+curl http://localhost:$API_PORT/health
+
+# View container logs
+docker compose logs -f pyexecutorhub-api
+
+# Check execution statistics
+curl http://localhost:$API_PORT/executions/stats
+```
+
+### Cleanup Operations
+```bash
+# Clean old executions
+curl -X DELETE http://localhost:$API_PORT/executions/cleanup
+
+# Manual cleanup
+curl -X DELETE http://localhost:$API_PORT/executions/manual_cleanup
+```
+
+### Maintenance Commands
+```bash
+# Restart service
+docker compose restart pyexecutorhub-api
+
+# Rebuild and restart
+docker compose up --build -d
+
+# Configuration backup
+cp config.yaml config.yaml.backup.$(date +%Y%m%d)
+```
 
 ## 🚨 Troubleshooting
 
+### Common Issues
 - **Don't use GUI libraries**: If your Python script/bot imports `tkinter`, `PyQt`, `matplotlib.pyplot`, etc., it will fail.
 - **API not responding**: Check status with `docker compose ps` and logs.
 - **Executions failing**: Check Python dependencies and configuration.
 - **Resource problems**: Use `docker stats` and clean resources with `docker system prune -f`.
 - **Port occupied**: Change `API_PORT` in the `.env` file if the default port is in use.
 
+### Performance Issues
+- **Slow executions**: Check Docker resource limits and system resources
+- **API hanging**: Verify no blocking operations in Python scripts
+- **Memory issues**: Monitor container memory usage and adjust limits
+
+### Log Analysis
+- **Execution logs**: Use the formatted logs for better debugging
+- **Error tracking**: Check both `output` and `error` fields in execution results
+- **System logs**: Monitor Docker container logs for system-level issues
+
+## 🔄 Cron Job Integration
+
+### Automated Execution
+You can set up cron jobs to automatically execute Python programs:
+
+```bash
+# Example: Run example_bot every 8 hours
+0 */8 * * * /path/to/execute_bot.sh example_bot
+```
+
+### Bot Execution Script
+Create a script `execute_bot.sh`:
+```bash
+#!/bin/bash
+BOT_ID=$1
+API_PORT=8000  # Adjust to your port
+
+if [ -z "$BOT_ID" ]; then
+    echo "Usage: $0 <bot_id>"
+    exit 1
+fi
+
+curl -X POST "http://localhost:$API_PORT/execute" \
+  -H "Content-Type: application/json" \
+  -d "{\"program_id\": \"$BOT_ID\"}"
+```
+
 ## 📚 Documentation
 
 - All relevant information is in this README.
 - For support, contact the DevOps team.
+- Check the `actions/README.md` for detailed actions documentation.
 
 ---
 
-**⚡ Deploy Python scripts in seconds, not hours. Execute with confidence.** 
+**⚡ Deploy Python scripts in seconds, not hours. Execute with confidence.**
+
+**🆕 Version 1.0.0** - Enhanced with improved log formatting, better performance, and production-ready stability. 
