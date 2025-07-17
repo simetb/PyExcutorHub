@@ -39,7 +39,7 @@ services:
 
 networks:
   pyexecutorhub-network:
-    driver: bridge
+    driver: bridge 
     # Configuración de red para producción
     driver_opts:
       com.docker.network.bridge.name: pyexecutorhub-br0 

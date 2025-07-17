@@ -23,6 +23,6 @@ bots:
 settings:
   docker_image: "pyexecutorhub-base"
   timeout_seconds: 300  # 5 minutes default
-  max_concurrent_executions: 5
+  max_concurrent_executions: 5 
   memory_limit: "1g"    # Recommended: 1GB for most cases
   cpu_limit: "0.5"      # CPU limit per container (50% of one core) 

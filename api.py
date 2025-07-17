@@ -4,19 +4,19 @@ Serverless Docker API
 FastAPI for executing scripts and bots in Docker containers
 """
 
-import os
-import sys
-import subprocess
 import asyncio
-import yaml
+import json
+import os
+import subprocess
 import uuid
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional, Any
-from dotenv import dotenv_values
+from typing import Any, Dict, List, Optional
 
-from fastapi import FastAPI, HTTPException, BackgroundTasks
-from fastapi.responses import JSONResponse
+import uvicorn
+import yaml
+from dotenv import dotenv_values
+from fastapi import BackgroundTasks, FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
 # Pydantic models for responses
@@ -51,7 +51,11 @@ class ExecutionStatus(BaseModel):
 
 # Global state for execution tracking
 executions: Dict[str, ExecutionStatus] = {}
-MAX_EXECUTIONS = 50  # Memory execution limit
+MAX_EXECUTIONS = 100  # Memory execution limit
+
+# Thread lock for safe access to executions dictionary
+import threading
+executions_lock = threading.Lock()
 
 class ServerlessAPI:
     def __init__(self):
@@ -130,8 +134,13 @@ class ServerlessAPI:
         """Execute a program in background"""
         try:
             # Update status
-            executions[execution_id].status = "running"
-            executions[execution_id].start_time = datetime.now()
+            with executions_lock:
+                if execution_id in executions:
+                    executions[execution_id].status = "running"
+                    executions[execution_id].start_time = datetime.now()
+                else:
+                    print(f"⚠️ Execution {execution_id} not found, skipping execution")
+                    return
             
             # Get program configuration
             program_config = self.get_program_by_id(program_id)
@@ -197,28 +206,40 @@ class ServerlessAPI:
             )
             
             # Update final status
-            executions[execution_id].end_time = datetime.now()
-            executions[execution_id].output = result.stdout
-            executions[execution_id].error = result.stderr
-            
-            if result.returncode == 0:
-                executions[execution_id].status = "completed"
-                print(f"✅ Program {program_id} executed successfully")
-            else:
-                executions[execution_id].status = "failed"
-                print(f"❌ Program {program_id} failed with code {result.returncode}")
+            with executions_lock:
+                if execution_id in executions:
+                    executions[execution_id].end_time = datetime.now()
+                    executions[execution_id].output = result.stdout
+                    executions[execution_id].error = result.stderr
+                    
+                    if result.returncode == 0:
+                        executions[execution_id].status = "completed"
+                        print(f"✅ Program {program_id} executed successfully")
+                    else:
+                        executions[execution_id].status = "failed"
+                        print(f"❌ Program {program_id} failed with code {result.returncode}")
+                else:
+                    print(f"⚠️ Execution {execution_id} not found when updating final status")
             
         except subprocess.TimeoutExpired:
-            executions[execution_id].status = "timeout"
-            executions[execution_id].end_time = datetime.now()
-            executions[execution_id].error = "Execution exceeded time limit"
-            print(f"⏰ Program {program_id} exceeded time limit")
+            with executions_lock:
+                if execution_id in executions:
+                    executions[execution_id].status = "timeout"
+                    executions[execution_id].end_time = datetime.now()
+                    executions[execution_id].error = "Execution exceeded time limit"
+                    print(f"⏰ Program {program_id} exceeded time limit")
+                else:
+                    print(f"⚠️ Execution {execution_id} not found when handling timeout")
             
         except Exception as e:
-            executions[execution_id].status = "failed"
-            executions[execution_id].end_time = datetime.now()
-            executions[execution_id].error = str(e)
-            print(f"❌ Error executing program {program_id}: {e}")
+            with executions_lock:
+                if execution_id in executions:
+                    executions[execution_id].status = "failed"
+                    executions[execution_id].end_time = datetime.now()
+                    executions[execution_id].error = str(e)
+                    print(f"❌ Error executing program {program_id}: {e}")
+                else:
+                    print(f"⚠️ Execution {execution_id} not found when handling error: {e}")
     
     def _build_container_command(self, program_path: Path, main_file_name: str) -> str:
         """Build the command to execute inside the container"""
@@ -255,27 +276,39 @@ class ServerlessAPI:
     
     def cleanup_old_executions(self):
         """Remove oldest executions when limit is reached"""
-        if len(executions) >= MAX_EXECUTIONS:
-            # Sort by start_time and remove oldest
-            sorted_executions = sorted(
-                executions.items(),
-                key=lambda x: x[1].start_time if x[1].start_time else datetime.min
-            )
-            
-            # Calculate how many to remove
-            to_remove = len(executions) - MAX_EXECUTIONS + 1
-            
-            # Remove oldest
-            for i in range(to_remove):
-                if i < len(sorted_executions):
-                    exec_id = sorted_executions[i][0]
-                    del executions[exec_id]
-                    print(f"🗑️ Removed old execution: {exec_id}")
+        with executions_lock:
+            if len(executions) >= MAX_EXECUTIONS:
+                # Only consider executions that are finished (completed, failed, timeout)
+                # Don't remove running or queued executions
+                finished_executions = [
+                    (exec_id, exec_status) for exec_id, exec_status in executions.items()
+                    if exec_status.status in ["completed", "failed", "timeout"]
+                ]
+                
+                if len(finished_executions) > 0:
+                    # Sort by start_time and remove oldest finished executions
+                    sorted_executions = sorted(
+                        finished_executions,
+                        key=lambda x: x[1].start_time if x[1].start_time else datetime.min
+                    )
+                    
+                    # Calculate how many to remove
+                    to_remove = len(executions) - MAX_EXECUTIONS + 1
+                    
+                    # Remove oldest finished executions
+                    for i in range(min(to_remove, len(sorted_executions))):
+                        exec_id = sorted_executions[i][0]
+                        del executions[exec_id]
+                        print(f"🗑️ Removed old execution: {exec_id}")
+                else:
+                    # If no finished executions to remove, log a warning
+                    print(f"⚠️ Cannot cleanup: {len(executions)} executions exist but none are finished")
     
     def add_execution(self, execution: ExecutionStatus):
         """Add a new execution and clean old ones if necessary"""
-        executions[execution.execution_id] = execution
-        self.cleanup_old_executions()
+        with executions_lock:
+            executions[execution.execution_id] = execution
+            self.cleanup_old_executions()
     
     def setup_routes(self):
         """Setup API routes"""
@@ -378,77 +411,81 @@ class ServerlessAPI:
         @self.app.get("/executions/{execution_id}", response_model=ExecutionStatus)
         async def get_execution_status(execution_id: str):
             """Get execution status"""
-            if execution_id not in executions:
-                raise HTTPException(status_code=404, detail="Execution not found")
+            with executions_lock:
+                if execution_id not in executions:
+                    raise HTTPException(status_code=404, detail="Execution not found")
             
             return executions[execution_id]
         
         @self.app.get("/executions", response_model=List[ExecutionStatus])
         async def list_executions():
             """List all executions"""
-            return list(executions.values())
-        
+            with executions_lock:
+                return list(executions.values())
+
         @self.app.get("/executions/info", response_model=Dict[str, Any])
         async def get_executions_info():
             """Get information about execution storage"""
-            return {
-                "total_executions": len(executions),
-                "max_executions": MAX_EXECUTIONS,
-                "available_slots": MAX_EXECUTIONS - len(executions),
-                "storage_type": "memory",
-                "cleanup_enabled": True
-            }
+            with executions_lock:
+                return {
+                    "total_executions": len(executions),
+                    "max_executions": MAX_EXECUTIONS,
+                    "available_slots": MAX_EXECUTIONS - len(executions),
+                    "storage_type": "memory",
+                    "cleanup_enabled": True
+                }
         
         @self.app.delete("/executions/cleanup")
         async def cleanup_executions():
             """Manually clean oldest executions"""
-            initial_count = len(executions)
-            self.cleanup_old_executions()
-            final_count = len(executions)
-            removed_count = initial_count - final_count
-            
-            return {
-                "message": f"Cleanup completed",
-                "removed_executions": removed_count,
-                "remaining_executions": final_count,
-                "max_executions": MAX_EXECUTIONS
-            }
+            with executions_lock:
+                initial_count = len(executions)
+                self.cleanup_old_executions()
+                final_count = len(executions)
+                removed_count = initial_count - final_count
+                
+                return {
+                    "message": f"Cleanup completed",
+                    "removed_executions": removed_count,
+                    "remaining_executions": final_count,
+                    "max_executions": MAX_EXECUTIONS
+                }
         
         @self.app.get("/executions/stats", response_model=Dict[str, Any])
         async def get_executions_stats():
             """Get execution statistics"""
-            if not executions:
+            with executions_lock:
+                if not executions:
+                    return {
+                        "total": 0,
+                        "by_status": {},
+                        "recent_executions": 0
+                    }
+                
+                # Count by status
+                status_counts = {}
+                for execution in executions.values():
+                    status = execution.status
+                    status_counts[status] = status_counts.get(status, 0) + 1
+                
+                # Count recent executions (last 24 hours)
+                from datetime import timedelta
+                cutoff_time = datetime.now() - timedelta(hours=24)
+                recent_count = sum(
+                    1 for execution in executions.values()
+                    if execution.start_time and execution.start_time > cutoff_time
+                )
+                
                 return {
-                    "total": 0,
-                    "by_status": {},
-                    "recent_executions": 0
+                    "total": len(executions),
+                    "by_status": status_counts,
+                    "recent_executions": recent_count,
+                    "max_executions": MAX_EXECUTIONS
                 }
-            
-            # Count by status
-            status_counts = {}
-            for execution in executions.values():
-                status = execution.status
-                status_counts[status] = status_counts.get(status, 0) + 1
-            
-            # Count recent executions (last 24 hours)
-            from datetime import timedelta
-            cutoff_time = datetime.now() - timedelta(hours=24)
-            recent_count = sum(
-                1 for execution in executions.values()
-                if execution.start_time and execution.start_time > cutoff_time
-            )
-            
-            return {
-                "total": len(executions),
-                "by_status": status_counts,
-                "recent_executions": recent_count,
-                "max_executions": MAX_EXECUTIONS
-            }
 
 # Create API instance
 api = ServerlessAPI()
 app = api.app
 
 if __name__ == "__main__":
-    import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000) 
