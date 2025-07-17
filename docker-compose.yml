@@ -19,8 +19,6 @@ services:
       - PYTHONUNBUFFERED=1
       - PROJECT_DIR=/project
     restart: unless-stopped
-    networks:
-      - pyexecutorhub-network
     # Configuración de recursos para producción
     deploy:
       resources:
@@ -35,11 +33,4 @@ services:
       - no-new-privileges:true
     read_only: false
     tmpfs:
-      - /tmp:noexec,nosuid,size=100m
-
-networks:
-  pyexecutorhub-network:
-    driver: bridge 
-    # Configuración de red para producción
-    driver_opts:
-      com.docker.network.bridge.name: pyexecutorhub-br0 
+      - /tmp:noexec,nosuid,size=100m 
