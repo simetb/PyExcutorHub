@@ -12,6 +12,4 @@ RUN pip install mariadb
 # Set working directory
 WORKDIR /workspace
 
-# Image name: pyexecutorhub-base:latest
-# Configure entrypoint for dynamic commands
-ENTRYPOINT ["/bin/bash", "-c"] 
+# Image name: pyexecutorhub-base:latest 

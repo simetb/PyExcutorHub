@@ -1,196 +1,114 @@
-# 🚀 PyExecutorHub - The Ultimate Python Execution Platform
+# PyExecutorHub - The Ultimate Python Execution Platform
 
-<p align="center">
-  <img src="assets/logo.png" alt="PyExecutorHub Logo" width="300"/>
-</p>
+[![PyExecutorHub](https://img.shields.io/badge/PyExecutorHub-Platform-blue?style=for-the-badge&logo=python)](https://github.com/simetb/PyExecutorHub)
 
-```
-             _____       ______                     _             _    _       _     
-            |  __ \     |  ____|                   | |           | |  | |     | |    
-            | |__) |   _| |__  __  _____  ___ _   _| |_ ___  _ __| |__| |_   _| |__  
-            |  ___/ | | |  __| \ \/ / _ \/ __| | | | __/ _ \| '__|  __  | | | | '_ \ 
-            | |   | |_| | |____ >  <  __/ (__| |_| | || (_) | |  | |  | | |_| | |_) |
-            |_|    \__, |______/_/\_\___|\___|\__,_|\__\___/|_|  |_|  |_|\__,_|_.__/ 
-                    __/ |                                                            
-                    |___/              
-```
+> **IMPORTANT**: This system is designed for Python scripts and bots only. Do NOT use GUI libraries like `tkinter`, `PyQt`, `wxPython`, or any graphical libraries as they will cause execution failures in the serverless environment.
 
-> **IMPORTANT:**
-> 
-> **PyExecutorHub is designed exclusively for Python scripts and bots. Scripts and bots should NOT contain graphical libraries or GUI dependencies** (e.g., `tkinter`, `PyQt`, `matplotlib.pyplot`, `wxPython`, `PySide`, etc.). The serverless environment is designed for background execution without access to a graphical environment. If your script/bot imports any of these libraries, it will fail in production.
+## 🚀 Latest Updates (v1.0.0)
 
----
+### ✨ New Features
+- **Custom Docker Images**: Each script/bot can now specify its own Docker image
+- **Multi-language Support**: Support for Python, Node.js, and shell scripts
+- **Enhanced Log Formatting**: Improved log readability with proper line breaks
+- **Flexible Execution**: Programs can use different runtime environments
 
-Transform your **Python scripts and bots** into scalable, secure, and lightning-fast serverless applications. PyExecutorHub provides enterprise-grade execution infrastructure with zero server management, **exclusively designed for Python development**.
-
-**Python Version:** This system is designed for Python 3.11, but can be adjusted by modifying the Dockerfile.
-
-## 🆕 Latest Updates (v1.0.0)
-
-### ✨ New Features & Improvements
-- **🔧 Enhanced Log Formatting**: Execution logs now display with proper line breaks for better readability
-- **⚡ Optimized API Performance**: Improved async execution handling and reduced blocking operations
-- **🛡️ Production-Ready Stability**: Fixed race conditions and improved error handling
-- **📊 Better Execution Management**: Enhanced cleanup mechanisms and execution tracking
-- **🔍 Improved Debugging**: Better logging and error reporting throughout the system
-- **🚀 Simplified Docker Configuration**: Streamlined docker-compose setup for production
+### 🔧 Improvements
+- **Better Error Handling**: More robust execution tracking
+- **Resource Management**: Optimized memory and CPU usage
+- **Documentation**: Comprehensive guides and examples
 
 ### 🐛 Bug Fixes
-- Fixed KeyError issues in execution tracking
-- Resolved API endpoint hanging problems
-- Eliminated deadlock scenarios in concurrent executions
-- Improved Docker command execution reliability
+- **Race Condition Fix**: Resolved KeyError issues in execution tracking
+- **API Hanging**: Fixed event loop blocking issues
+- **Network Configuration**: Simplified Docker networking
 
-## 🚀 Quick Installation
+## 📋 Table of Contents
 
-```bash
-# Clone the repository
-git clone https://github.com/simetb/PyExcutorHub.git
-cd PyExcutorHub
+- [Overview](#overview)
+- [Architecture](#architecture)
+- [Installation](#installation)
+- [Configuration](#configuration)
+- [Custom Docker Images](#custom-docker-images)
+- [Usage](#usage)
+- [API Endpoints](#api-endpoints)
+- [Actions System](#actions-system)
+- [Log Management](#log-management)
+- [Cron Job Integration](#cron-job-integration)
+- [Troubleshooting](#troubleshooting)
 
-# Run the installer
-./install.sh
-```
+## 🎯 Overview
 
-The installer will:
-- ✅ Check system requirements (Docker, Docker Compose, Git, curl)
-- ✅ Configure environment automatically
-- ✅ Build and start all services
-- ✅ Test the installation
-- ✅ Show usage instructions
+PyExecutorHub is a serverless execution platform that allows you to run Python scripts and bots in isolated Docker containers. It provides a REST API for program execution, monitoring, and management.
+
+### Key Features
+- **Isolated Execution**: Each program runs in its own Docker container
+- **Custom Docker Images**: Use specific images for different runtime requirements
+- **Real-time Monitoring**: Track execution status and logs
+- **Flexible Configuration**: Easy setup and customization
+- **Actions System**: Pre and post-execution hooks
+- **Multi-language Support**: Python, Node.js, and shell scripts
 
 ## 🏗️ Architecture
 
 ```
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   HTTP Client   │───▶│   FastAPI API   │───▶│  Docker Engine  │
-│                 │    │   (API_PORT)    │                 │
-└─────────────────┘    └─────────────────┘    └─────────────────┘
-                              │                        │
-                              ▼                        ▼
-                       ┌─────────────────┐    ┌─────────────────┐
-                       │   Config YAML   │    │  Isolated       │
-                       │   (Programs)    │    │  Containers     │
-                       └─────────────────┘    └─────────────────┘
+┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
+│   Client/API    │───▶│  FastAPI Server  │───▶│  Docker Engine  │
+│   (HTTP/REST)   │    │  (Port 8000)     │    │  (Containers)   │
+└─────────────────┘    └──────────────────┘    └─────────────────┘
+                              │
+                              ▼
+                       ┌──────────────────┐
+                       │  Program Files   │
+                       │  (Scripts/Bots)  │
+                       └──────────────────┘
 ```
 
-- **REST API**: FastAPI exposes endpoints to execute and monitor Python scripts/bots.
-- **Isolation**: Each execution occurs in an independent Docker container.
-- **Configuration**: Programs are defined in `config.yaml`.
-- **Python-Focused**: Designed exclusively for Python scripts and bots.
-- **No GUI dependencies**: Console-only Python scripts/bots.
-- **Async Execution**: Non-blocking execution with proper resource management.
+## 🚀 Installation
 
-## 🚀 Installation and Configuration
+### Prerequisites
+- Docker and Docker Compose
+- Python 3.11+
+- Git
 
-### 1. Clone the repository
+### Quick Start
 ```bash
-git clone <repository-url>
+# Clone the repository
+git clone https://github.com/simetb/PyExecutorHub.git
 cd PyExecutorHub
-```
 
-### 2. Configure environment variables
-```bash
+# Copy environment configuration
 cp env.example .env
-# Edit .env with your configurations
-# Especially HOST_PROJECT_DIR and API_PORT
-```
 
-### 3. Build and run with Docker Compose
-```bash
+# Edit .env with your settings
+nano .env
+
+# Start the system
 docker compose up -d --build
 ```
 
-### 4. Verify installation
-```bash
-# Get the configured port
-API_PORT=$(grep API_PORT .env | cut -d'=' -f2)
-curl http://localhost:$API_PORT/health
-```
-
-## 📋 Program Configuration
-
-### Directory structure
-```
-PyExecutorHub/
-├── scripts/
-│   └── example_script/
-│       ├── main.py
-│       ├── requirements.txt
-│       └── .env
-├── bots/
-│   └── example_bot/
-│       ├── run.py
-│       ├── requirements.txt
-│       └── .env
-└── config.yaml
-```
-
-### Script example
-
-**scripts/example_script/main.py**
-```python
-#!/usr/bin/env python3
-import os, sys
-from datetime import datetime
-
-def main():
-    print("🚀 Script running...")
-    print(f"Date and time: {datetime.now()}")
-    print(f"Python version: {sys.version}")
-    print(f"Working directory: {os.getcwd()}")
-    # Your logic here
-    print("✅ Script completed successfully!")
-
-if __name__ == "__main__":
-    main()
-```
-
-**scripts/example_script/requirements.txt**
-```txt
-requests==2.31.0
-python-dotenv==1.0.0
-```
-
-**scripts/example_script/env.example**
+### Environment Configuration
+Edit `.env` file:
 ```env
-# Environment variables for the example script
-DEBUG=false
+# Project configuration
+HOST_PROJECT_DIR=/path/to/your/project
+MAX_EXECUTIONS=50
+EXECUTION_TIMEOUT=300
+
+# Resource configuration
+MEMORY_LIMIT=1g
+CPU_LIMIT=0.5
+
+# Network configuration
+API_HOST=0.0.0.0
+API_PORT=8000
 ```
 
-### Bot example
+## Configuration
 
-**bots/example_bot/run.py**
-```python
-#!/usr/bin/env python3
-import os, sys
-from datetime import datetime
+The system uses a `config.yaml` file to define available scripts and bots. This file is mounted as a volume, allowing you to modify the configuration without rebuilding the container.
 
-def main():
-    print("🤖 Bot running...")
-    print(f"Date and time: {datetime.now()}")
-    print(f"Python version: {sys.version}")
-    print(f"Working directory: {os.getcwd()}")
-    # Bot logic here
-    print("✅ Bot completed successfully!")
+### Configuration File Structure
 
-if __name__ == "__main__":
-    main()
-```
-
-**bots/example_bot/requirements.txt**
-```txt
-requests==2.31.0
-python-dotenv==1.0.0
-```
-
-**bots/example_bot/env.example**
-```env
-# Environment variables for the example bot
-DEBUG=false
-```
-
-### Configuration example in config.yaml
 ```yaml
 scripts:
   example_script:
@@ -200,6 +118,17 @@ scripts:
     description: "Example script for production"
     enabled: true
     main_file: "main.py"
+    # Optional: Custom Docker image for this script
+    # docker_image: "my-custom-image:latest"
+
+  custom_image_script:
+    id: "custom_image_script"
+    name: "Custom Image Script"
+    path: "scripts/custom_image_script"
+    description: "Script using custom Docker image"
+    enabled: true
+    main_file: "main.py"
+    docker_image: "python:3.11-slim"  # Custom image for this script
 
 bots:
   example_bot:
@@ -209,301 +138,437 @@ bots:
     description: "Example bot for production"
     enabled: true
     main_file: "run.py"
+    # Optional: Custom Docker image for this bot
+    # docker_image: "my-custom-bot-image:latest"
 
+  custom_image_bot:
+    id: "custom_image_bot"
+    name: "Custom Image Bot"
+    path: "bots/custom_image_bot"
+    description: "Bot using custom Docker image"
+    enabled: true
+    main_file: "run.py"
+    docker_image: "python:3.12-slim"  # Custom image for this bot
+
+# General system configuration
 settings:
-  docker_image: "serverless-base"
-  timeout_seconds: 300
-  max_concurrent_executions: 5
-  memory_limit: "1g"  # Recommended: 1GB for most cases
-  cpu_limit: "0.5"
+  docker_image: "pyexecutorhub-base"  # Default image for programs without custom image
+  timeout_seconds: 300  # 5 minutes default
+  max_concurrent_executions: 5 
+  memory_limit: "1g"    # Recommended: 1GB for most cases
+  cpu_limit: "0.5"      # CPU limit per container (50% of one core)
 ```
 
-## 🔧 Actions System (Hooks)
+### Real-time Configuration Updates
 
-The system includes an actions mechanism that runs automatically **before** and **after** each Python program.
+The `config.yaml` file is mounted as a volume, which means:
+- ✅ **No rebuild required**: Changes to the configuration file are reflected immediately
+- ✅ **Live updates**: Add, modify, or remove programs without restarting the container
+- ✅ **Persistent changes**: Configuration changes survive container restarts
+- ✅ **Easy management**: Edit the file directly on the host system
 
-### 📁 Actions Structure
+To add a new program:
+1. Edit `config.yaml` and add your program configuration
+2. The new program will be available immediately via the API
+3. No container restart or rebuild needed
+
+## 🐳 Custom Docker Images
+
+### Overview
+Each script or bot can specify its own Docker image, allowing for:
+- **Different runtime environments** (Python, Node.js, etc.)
+- **Optimized images** for specific use cases
+- **Pre-installed dependencies** for faster execution
+- **Custom configurations** for different requirements
+
+### Configuration
+Add `docker_image` to your program configuration:
+```yaml
+my_script:
+  id: "my_script"
+  name: "My Script"
+  path: "scripts/my_script"
+  docker_image: "python:3.11-slim"  # Custom image
+  main_file: "main.py"
 ```
-actions/
-├── act_before.py      # Actions BEFORE the program
-├── act_after.py       # Actions AFTER the program
-├── requirements.txt   # Dependencies for actions
-└── README.md         # Detailed documentation
+
+### Supported Image Types
+
+#### Python Images
+```yaml
+docker_image: "python:3.11-slim"
+docker_image: "python:3.11-alpine"
+docker_image: "python:3.12"
 ```
 
-### 🔄 Execution Flow
-```
-1. Execution request received
-2. Docker container created
-3. 🔧 act_before.py runs (validations, logging)
-4. 🚀 Main Python program executes
-5. 🔧 act_after.py runs (notifications, cleanup)
-6. Result returned
+#### Node.js Images
+```yaml
+docker_image: "node:18-alpine"
+docker_image: "node:20-slim"
+docker_image: "node:latest"
 ```
 
-### 📋 Variables Available in Actions
-- `PROGRAM_ID`: ID of the Python program being executed
-- `EXECUTION_ID`: Unique execution ID
-- `EXIT_CODE`: Exit code (only in act_after.py)
-- `PARAM_*`: Parameters passed to the Python program
+#### Other Images
+```yaml
+docker_image: "ubuntu:22.04"
+docker_image: "debian:bullseye-slim"
+docker_image: "alpine:latest"
+```
 
-### 🚀 Use Cases
-- ✅ **Environment validations** (disk space, connectivity)
-- ✅ **Logging and monitoring** (start, end, metrics)
-- ✅ **Notifications** (success, error, alerts)
-- ✅ **Resource cleanup** (temporary files)
-- ✅ **Result backup** (important files)
-- ✅ **Log analysis** (errors, performance)
+### Image Requirements
+- **Must support shell commands** (bash/sh)
+- **Should have the required runtime** (python, node, etc.)
+- **Must be available locally** or pullable from Docker Hub
+- **Should be optimized** for your use case
 
-**📖 See complete documentation:** [actions/README.md](actions/README.md)
+### Examples
+
+#### Python Script with Custom Image
+```python
+#!/usr/bin/env python3
+import os
+import sys
+
+def main():
+    print(f"Python version: {sys.version}")
+    print(f"Running in container: {os.path.exists('/.dockerenv')}")
+    return 0
+
+if __name__ == "__main__":
+    sys.exit(main())
+```
+
+#### Node.js Bot with Custom Image
+```javascript
+#!/usr/bin/env node
+const os = require('os');
+
+function main() {
+    console.log(`Node.js version: ${process.version}`);
+    console.log(`Platform: ${process.platform}`);
+    process.exit(0);
+}
+
+main();
+```
+
+### Best Practices
+1. **Use specific versions** instead of `latest`
+2. **Choose lightweight images** when possible
+3. **Test your images** before production
+4. **Document image requirements** in your code
+5. **Use multi-stage builds** for complex setups
+
+## 📖 Usage
+
+### API Endpoints
+
+#### List Programs
+```bash
+curl http://localhost:8000/programs
+```
+
+#### Execute Program
+```bash
+curl -X POST http://localhost:8000/execute \
+  -H "Content-Type: application/json" \
+  -d '{"program_id": "my_script", "parameters": {"param1": "value1"}}'
+```
+
+#### Check Execution Status
+```bash
+curl http://localhost:8000/executions/{execution_id}
+```
+
+### Program Structure
+```
+scripts/
+├── my_script/
+│   ├── main.py          # Main script file
+│   ├── requirements.txt  # Python dependencies
+│   └── env.example      # Environment variables template
+
+bots/
+├── my_bot/
+│   ├── run.py           # Main bot file
+│   ├── requirements.txt  # Python dependencies
+│   └── env.example      # Environment variables template
+```
 
 ## 🔌 API Endpoints
 
-### POST /execute - Execute a Python Program
+### Core Endpoints
+- `GET /` - API information
+- `GET /health` - Health check
+- `GET /programs` - List all programs
+- `POST /execute` - Execute a program
+- `GET /executions` - List all executions
+- `GET /executions/{id}` - Get execution status
 
-**Description:** Executes a Python program (script or bot) in an isolated Docker container.
+### Management Endpoints
+- `GET /executions/info` - Execution statistics
+- `GET /executions/stats` - Detailed statistics
+- `DELETE /executions/cleanup` - Cleanup finished executions
 
-**URL:** `POST http://localhost:API_PORT/execute`
+## ⚡ Actions System
 
-**Headers:**
+### Overview
+Actions are Python scripts that run before and after program execution, providing hooks for:
+- **Pre-execution setup** (database connections, file preparation)
+- **Post-execution cleanup** (log processing, notifications)
+- **Custom workflows** (data validation, reporting)
+
+### Structure
 ```
-Content-Type: application/json
-```
-
-**Body (JSON):**
-```json
-{
-  "program_id": "string",           // REQUIRED: ID of the Python program to execute
-  "parameters": {                   // OPTIONAL: Additional parameters
-    "parameter1": "value1",
-    "parameter2": "value2"
-  }
-}
-```
-
-**Usage Examples:**
-
-1. **Execute example Python script:**
-```bash
-curl -X POST http://localhost:API_PORT/execute \
-  -H "Content-Type: application/json" \
-  -d '{"program_id": "example_script"}'
-```
-
-2. **Execute example Python bot:**
-```bash
-curl -X POST http://localhost:API_PORT/execute \
-  -H "Content-Type: application/json" \
-  -d '{"program_id": "example_bot"}'
+actions/
+├── act_before.py        # Pre-execution actions
+├── act_after.py         # Post-execution actions
+├── requirements.txt     # Action dependencies
+└── README.md           # Documentation
 ```
 
-3. **Execute Vodafone bot (using ID "6"):**
-```bash
-curl -X POST http://localhost:API_PORT/execute \
-  -H "Content-Type: application/json" \
-  -d '{"program_id": "6"}'
+### Environment Variables
+Actions have access to:
+- `PROGRAM_ID` - Current program ID
+- `EXECUTION_ID` - Current execution ID
+- `EXIT_CODE` - Program exit code (post-execution only)
+- All custom parameters as `PARAM_*` variables
+
+### Example Actions
+```python
+# act_before.py
+import os
+import logging
+
+def main():
+    program_id = os.getenv('PROGRAM_ID')
+    execution_id = os.getenv('EXECUTION_ID')
+    
+    logging.info(f"Starting execution {execution_id} for program {program_id}")
+    
+    # Your pre-execution logic here
+    print("🔧 Pre-execution actions completed")
+
+if __name__ == "__main__":
+    main()
 ```
 
-4. **With additional parameters:**
-```bash
-curl -X POST http://localhost:API_PORT/execute \
-  -H "Content-Type: application/json" \
-  -d '{
-    "program_id": "6",
-    "parameters": {
-      "user": "admin@example.com",
-      "wait_time": "30"
-    }
-  }'
+```python
+# act_after.py
+import os
+import requests
+
+def main():
+    exit_code = os.getenv('EXIT_CODE', '0')
+    program_id = os.getenv('PROGRAM_ID')
+    
+    if exit_code == '0':
+        print("✅ Program completed successfully")
+        # Send success notification
+    else:
+        print(f"❌ Program failed with exit code {exit_code}")
+        # Send failure notification
+
+if __name__ == "__main__":
+    main()
 ```
-
-**Successful Response (200):**
-```json
-{
-  "execution_id": "uuid-string",
-  "program_id": "6",
-  "status": "queued",
-  "message": "Program '6' queued for execution",
-  "timestamp": "2025-07-02T09:10:00.000000"
-}
-```
-
-**Error Responses:**
-
-404 - Python program not found:
-```json
-{
-  "detail": "Program with ID 'nonexistent_program' not found"
-}
-```
-
-400 - Python program disabled:
-```json
-{
-  "detail": "Program '6' is disabled"
-}
-```
-
-**Important Notes:**
-- **Asynchronous Execution:** The request returns immediately with an `execution_id`
-- **Execution Status:** Use the `execution_id` to query status at `/executions/{execution_id}`
-- **Parameters:** Passed as environment variables to the container with `PARAM_` prefix
-- **Timeout:** Default 300 seconds (5 minutes)
-- **Isolation:** Each Python execution runs in a separate Docker container
-- **Log Formatting:** Output and error logs are properly formatted with line breaks
-
-### GET /executions - List All Executions
-
-**Description:** Returns a list of all executions with their status and formatted logs.
-
-**URL:** `GET http://localhost:API_PORT/executions`
-
-**Response:**
-```json
-[
-  {
-    "execution_id": "uuid-string",
-    "program_id": "example_bot",
-    "status": "completed",
-    "start_time": "2025-07-17T11:21:02.135341",
-    "end_time": "2025-07-17T11:22:39.918597",
-    "output": "🚀 Bot running...\nDate and time: 2025-07-17 11:22:39.753124\nPython version: 3.11.13\nWorking directory: /workspace\n✅ Bot completed successfully!",
-    "error": null
-  }
-]
-```
-
-**Note:** Logs are now properly formatted with real line breaks for better readability.
-
-### Other Endpoints
-
-- `GET /` - Root endpoint with system information
-- `GET /health` - System health check
-- `GET /test` - Test endpoint for basic functionality
-- `GET /programs` - List available Python programs
-- `GET /executions/{execution_id}` - Get specific execution status
-- `GET /executions/stats` - Execution statistics
-- `GET /executions/info` - Information about execution storage
-- `DELETE /executions/cleanup` - Clean up finished executions
-- `DELETE /executions/manual_cleanup` - Manual cleanup endpoint
 
 ## 📊 Log Management
 
 ### Enhanced Log Formatting
-- **Real Line Breaks**: Logs now display with proper line breaks instead of `\n` characters
-- **Readable Output**: Both `output` and `error` fields are formatted for human readability
-- **Consistent Formatting**: All execution logs follow the same formatting standards
+Logs are automatically formatted for better readability:
+- **Line breaks** are properly displayed
+- **Escape sequences** are handled correctly
+- **Output and error** streams are separated
 
-### Viewing Formatted Logs
+### Viewing Logs
 ```bash
-# View logs with proper formatting using jq
-curl -s http://localhost:8000/executions | jq -r '.[0].output'
+# Get execution status with logs
+curl http://localhost:8000/executions/{execution_id}
 
-# View logs in a pager
-curl -s http://localhost:8000/executions | jq -r '.[0].output' | less
-
-# View error logs
-curl -s http://localhost:8000/executions | jq -r '.[0].error'
+# Example response
+{
+  "execution_id": "abc123",
+  "program_id": "my_script",
+  "status": "completed",
+  "output": "Program started\nProcessing data...\nCompleted successfully",
+  "error": ""
+}
 ```
 
-## 🛡️ Security
+### Log Levels
+- **INFO**: General execution information
+- **WARNING**: Non-critical issues
+- **ERROR**: Execution failures
+- **DEBUG**: Detailed debugging information
 
-- API access should be restricted by VPN/firewall.
-- No need to use API keys or JWT if the network is secure.
-- Containers run with non-root user
-- Network isolation
-- Configured resource limits
-- Docker socket with restricted permissions
-
-## 📊 Monitoring and Maintenance
-
-### System Health
-```bash
-# Check API health
-curl http://localhost:$API_PORT/health
-
-# View container logs
-docker compose logs -f pyexecutorhub-api
-
-# Check execution statistics
-curl http://localhost:$API_PORT/executions/stats
-```
-
-### Cleanup Operations
-```bash
-# Clean old executions
-curl -X DELETE http://localhost:$API_PORT/executions/cleanup
-
-# Manual cleanup
-curl -X DELETE http://localhost:$API_PORT/executions/manual_cleanup
-```
-
-### Maintenance Commands
-```bash
-# Restart service
-docker compose restart pyexecutorhub-api
-
-# Rebuild and restart
-docker compose up --build -d
-
-# Configuration backup
-cp config.yaml config.yaml.backup.$(date +%Y%m%d)
-```
-
-## 🚨 Troubleshooting
-
-### Common Issues
-- **Don't use GUI libraries**: If your Python script/bot imports `tkinter`, `PyQt`, `matplotlib.pyplot`, etc., it will fail.
-- **API not responding**: Check status with `docker compose ps` and logs.
-- **Executions failing**: Check Python dependencies and configuration.
-- **Resource problems**: Use `docker stats` and clean resources with `docker system prune -f`.
-- **Port occupied**: Change `API_PORT` in the `.env` file if the default port is in use.
-
-### Performance Issues
-- **Slow executions**: Check Docker resource limits and system resources
-- **API hanging**: Verify no blocking operations in Python scripts
-- **Memory issues**: Monitor container memory usage and adjust limits
-
-### Log Analysis
-- **Execution logs**: Use the formatted logs for better debugging
-- **Error tracking**: Check both `output` and `error` fields in execution results
-- **System logs**: Monitor Docker container logs for system-level issues
-
-## 🔄 Cron Job Integration
+## ⏰ Cron Job Integration
 
 ### Automated Execution
-You can set up cron jobs to automatically execute Python programs:
+Set up cron jobs for automated program execution:
 
 ```bash
-# Example: Run example_bot every 8 hours
-0 */8 * * * /path/to/execute_bot.sh example_bot
+# Execute bot every 8 hours
+0 */8 * * * /path/to/execute_bot.sh 6
 ```
 
-### Bot Execution Script
-Create a script `execute_bot.sh`:
+### Execution Script (`execute_bot.sh`)
 ```bash
 #!/bin/bash
-BOT_ID=$1
-API_PORT=8000  # Adjust to your port
+PROGRAM_ID=$1
 
-if [ -z "$BOT_ID" ]; then
-    echo "Usage: $0 <bot_id>"
+if [ -z "$PROGRAM_ID" ]; then
+    echo "Usage: $0 <program_id>"
     exit 1
 fi
 
-curl -X POST "http://localhost:$API_PORT/execute" \
+curl -X POST http://localhost:8000/execute \
   -H "Content-Type: application/json" \
-  -d "{\"program_id\": \"$BOT_ID\"}"
+  -d "{\"program_id\": \"$PROGRAM_ID\"}" \
+  -s > /dev/null
+
+echo "Bot $PROGRAM_ID execution triggered at $(date)"
 ```
 
-## 📚 Documentation
+### Server Migration
+When migrating to a new server:
+```bash
+# Update cron jobs
+crontab -e
 
-- All relevant information is in this README.
-- For support, contact the DevOps team.
-- Check the `actions/README.md` for detailed actions documentation.
+# Change paths from old system to new
+# Old: /apps/serverless-executor/execute_bot.sh
+# New: /apps/PyExecutorHub/execute_bot.sh
+```
+
+## 🔧 Troubleshooting
+
+### Common Issues
+
+#### Program Not Found
+```bash
+# Check if program exists
+curl http://localhost:8000/programs
+
+# Verify configuration
+cat config.yaml
+```
+
+#### Execution Failures
+```bash
+# Check execution status
+curl http://localhost:8000/executions/{execution_id}
+
+# View container logs
+docker logs pyexecutorhub-api
+```
+
+#### Docker Image Issues
+```bash
+# Check available images
+docker images
+
+# Pull missing images
+docker pull python:3.11-slim
+```
+
+### Debugging Steps
+1. **Check API health**: `curl http://localhost:8000/health`
+2. **Verify configuration**: Review `config.yaml`
+3. **Check Docker**: `docker ps -a`
+4. **View logs**: `docker logs pyexecutorhub-api`
+5. **Test manually**: Run program directly in container
+
+### Performance Optimization
+- **Use lightweight images** (alpine, slim)
+- **Optimize dependencies** (only required packages)
+- **Set appropriate timeouts** for your use case
+- **Monitor resource usage** regularly
+
+## 📚 Examples
+
+### Basic Python Script
+```python
+#!/usr/bin/env python3
+import os
+import sys
+
+def main():
+    print("Hello from PyExecutorHub!")
+    print(f"Program ID: {os.getenv('PROGRAM_ID')}")
+    print(f"Execution ID: {os.getenv('EXECUTION_ID')}")
+    return 0
+
+if __name__ == "__main__":
+    sys.exit(main())
+```
+
+### Script with Parameters
+```python
+#!/usr/bin/env python3
+import os
+import sys
+
+def main():
+    # Access custom parameters
+    param1 = os.getenv('PARAM_PARAM1', 'default')
+    param2 = os.getenv('PARAM_PARAM2', 'default')
+    
+    print(f"Parameter 1: {param1}")
+    print(f"Parameter 2: {param2}")
+    
+    return 0
+
+if __name__ == "__main__":
+    sys.exit(main())
+```
+
+### Bot with Database Connection
+```python
+#!/usr/bin/env python3
+import os
+import sys
+import mariadb
+
+def main():
+    try:
+        # Connect to database
+        conn = mariadb.connect(
+            host=os.getenv('DB_HOST'),
+            user=os.getenv('DB_USER'),
+            password=os.getenv('DB_PASS'),
+            database=os.getenv('DB_NAME')
+        )
+        
+        # Your bot logic here
+        print("Bot executed successfully")
+        
+        conn.close()
+        return 0
+        
+    except Exception as e:
+        print(f"Error: {e}")
+        return 1
+
+if __name__ == "__main__":
+    sys.exit(main())
+```
+
+## 🤝 Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 🆘 Support
+
+For support and questions:
+- **Documentation**: Check this README and the [actions README](actions/README.md)
+- **Issues**: Report bugs and feature requests on GitHub
+- **Examples**: Review the example scripts and bots in the repository
 
 ---
 
-**⚡ Deploy Python scripts in seconds, not hours. Execute with confidence.**
-
-**🆕 Version 1.0.0** - Enhanced with improved log formatting, better performance, and production-ready stability. 
+**PyExecutorHub** - Making Python execution simple, scalable, and reliable! 🚀 

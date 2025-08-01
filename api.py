@@ -39,6 +39,7 @@ class ProgramInfo(BaseModel):
     enabled: bool
     path: str
     key: Optional[str] = None
+    docker_image: Optional[str] = None  # Custom Docker image if specified
 
 class ExecutionStatus(BaseModel):
     execution_id: str
@@ -64,9 +65,9 @@ class ServerlessAPI:
             version="1.0.0"
         )
         print("📋 FastAPI app created")
-        self.config = self.load_config()
-        print("⚙️ Config loaded")
-        self.docker_image = self.config.get("settings", {}).get("docker_image", "serverless-base")
+        # Don't load config here, load it on demand
+        print("⚙️ Config will be loaded on demand")
+        self.docker_image = "pyexecutorhub-base"  # Default, will be overridden by config
         # In Docker, the base directory is /app
         self.base_dir = Path("/app")
         print("🔧 Setting up routes...")
@@ -79,19 +80,26 @@ class ServerlessAPI:
         if not config_path.exists():
             raise FileNotFoundError("config.yaml not found")
         
+        print(f"📄 Loading config from: {config_path}")
         with open(config_path, 'r', encoding='utf-8') as f:
-            return yaml.safe_load(f)
+            config = yaml.safe_load(f)
+            # Update default docker image from config
+            self.docker_image = config.get("settings", {}).get("docker_image", "pyexecutorhub-base")
+            print(f"✅ Config loaded successfully, found {len(config.get('scripts', {}))} scripts and {len(config.get('bots', {}))} bots")
+            return config
     
     def get_program_by_id(self, program_id: str) -> Optional[Dict]:
         """Find a program by ID in the configuration"""
+        config = self.load_config()
+        
         # Search in scripts by key or internal id
-        for script_id, script_config in self.config.get("scripts", {}).items():
+        for script_id, script_config in config.get("scripts", {}).items():
             if script_id == program_id or script_config.get("id") == program_id:
                 script_config["type"] = "script"
                 return script_config
         
         # Search in bots by key or internal id
-        for bot_id, bot_config in self.config.get("bots", {}).items():
+        for bot_id, bot_config in config.get("bots", {}).items():
             if bot_id == program_id or bot_config.get("id") == program_id:
                 bot_config["type"] = "bot"
                 return bot_config
@@ -184,8 +192,22 @@ class ServerlessAPI:
             
             print(f"🚀 Executing program: {program_id} ({program_path}) with file: {main_file_name}")
             
-            # Build image if necessary
-            self.build_image()
+            # Determine which Docker image to use
+            # Priority: 1. Program-specific image, 2. Default image from settings
+            docker_image = program_config.get("docker_image", self.docker_image)
+            print(f"🐳 Using Docker image: {docker_image}")
+            
+            # Validate that the Docker image exists (optional check)
+            if not await self._validate_docker_image(docker_image):
+                print(f"⚠️ Warning: Docker image '{docker_image}' may not exist. Execution will continue...")
+            
+            # Build default image if necessary (only for default image, not custom ones)
+            if docker_image == self.docker_image:
+                self.build_image()
+            
+            # Get timeout from config
+            config = self.load_config()
+            timeout = config.get("settings", {}).get("timeout_seconds", 300)
             
             # Prepare Docker command using absolute host path
             docker_cmd = [
@@ -207,11 +229,16 @@ class ServerlessAPI:
                 for key, value in parameters.items():
                     docker_cmd.extend(["-e", f"PARAM_{key.upper()}={value}"])
             
-            docker_cmd.extend([self.docker_image])
+            docker_cmd.extend([docker_image])
             
             # Build container command
             container_cmd = self._build_container_command(full_host_path, main_file_name)
-            docker_cmd.append(container_cmd)
+            
+            # For Node.js files, use a simpler approach
+            if main_file_name.endswith('.js'):
+                docker_cmd.extend(["node", f"/workspace/{main_file_name}"])
+            else:
+                docker_cmd.extend(["/bin/sh", "-c", container_cmd])
             
             print(f"🐳 Docker command: {' '.join(docker_cmd)}")
             print(f"🐳 Docker command to run: {docker_cmd}")
@@ -222,7 +249,7 @@ class ServerlessAPI:
                     docker_cmd,
                     capture_output=True,
                     text=True,
-                    timeout=self.config.get("settings", {}).get("timeout_seconds", 300)
+                    timeout=timeout
                 )
             
             result = await asyncio.to_thread(run_docker_command)
@@ -249,7 +276,7 @@ class ServerlessAPI:
             executions[execution_id].status = "failed"
             executions[execution_id].end_time = datetime.now()
             executions[execution_id].error = str(e)
-            print(f"❌ Error executing program {program_id}: {e}")
+            print(f"❌ Error executing program {program_id}: {str(e)}")
     
     def _build_container_command(self, program_path: Path, main_file_name: str) -> str:
         """Build the command to execute inside the container"""
@@ -258,26 +285,29 @@ class ServerlessAPI:
         # Change to working directory
         commands.append("cd /workspace")
         
-        # Install dependencies if requirements.txt exists (will be verified inside container)
-        commands.append("if [ -f requirements.txt ]; then pip install -r requirements.txt; fi")
+        # Install dependencies if requirements.txt exists (only for Python images)
+        commands.append("if command -v pip >/dev/null 2>&1 && [ -f requirements.txt ]; then pip install -r requirements.txt; fi")
         
-        # Install action dependencies if they exist
-        commands.append("if [ -f /project/actions/requirements.txt ]; then pip install -r /project/actions/requirements.txt; fi")
-        
-        # Execute action BEFORE the program
-        commands.append("echo '🔧 Executing pre-execution actions...'")
-        commands.append("if [ -f /project/actions/act_before.py ]; then python /project/actions/act_before.py; fi")
+        # Execute action BEFORE the program (only for Python images)
+        commands.append("if command -v python >/dev/null 2>&1 && [ -f /project/actions/act_before.py ]; then python /project/actions/act_before.py; fi")
         
         # Execute the main program and capture exit code
-        commands.append(f"python {main_file_name}")
-        commands.append("EXIT_CODE=$?")
+        # Support different interpreters based on file extension
+        if main_file_name.endswith('.py'):
+            commands.append(f"python {main_file_name}")
+        elif main_file_name.endswith('.js'):
+            commands.append(f"node {main_file_name}")
+        elif main_file_name.endswith('.sh'):
+            commands.append(f"bash {main_file_name}")
+        else:
+            # Default to python for unknown extensions
+            commands.append(f"python {main_file_name}")
         
-        # Set exit code as environment variable
+        commands.append("EXIT_CODE=$?")
         commands.append("export EXIT_CODE")
         
-        # Execute action AFTER the program
-        commands.append("echo '🔧 Executing post-execution actions...'")
-        commands.append("if [ -f /project/actions/act_after.py ]; then python /project/actions/act_after.py; fi")
+        # Execute action AFTER the program (only for Python images)
+        commands.append("if command -v python >/dev/null 2>&1 && [ -f /project/actions/act_after.py ]; then python /project/actions/act_after.py; fi")
         
         # Return the exit code of the main program
         commands.append("exit $EXIT_CODE")
@@ -343,6 +373,22 @@ class ServerlessAPI:
         executions[execution.execution_id] = execution
         await self.cleanup_old_executions()
     
+    async def _validate_docker_image(self, image_name: str) -> bool:
+        """Check if a Docker image exists locally"""
+        try:
+            def check_image():
+                result = subprocess.run(
+                    ["docker", "images", "-q", image_name],
+                    capture_output=True,
+                    text=True
+                )
+                return result.returncode == 0 and result.stdout.strip() != ""
+            
+            return await asyncio.to_thread(check_image)
+        except Exception as e:
+            print(f"⚠️ Error checking Docker image '{image_name}': {str(e)}")
+            return False
+    
     def setup_routes(self):
         """Setup API routes"""
         
@@ -364,37 +410,38 @@ class ServerlessAPI:
         @self.app.get("/programs", response_model=List[ProgramInfo])
         async def list_programs():
             """List all available programs"""
+            print("🔍 /programs endpoint called")
+            config = self.load_config()
+            print(f"📋 Config loaded with {len(config.get('scripts', {}))} scripts and {len(config.get('bots', {}))} bots")
             programs = []
             
             # Add scripts
-            for script_id, script_config in self.config.get("scripts", {}).items():
+            for script_id, script_config in config.get("scripts", {}).items():
                 if script_config.get("enabled", True):
-                    program_info = ProgramInfo(
-                        id=script_config["id"],
-                        name=script_config["name"],
+                    programs.append(ProgramInfo(
+                        id=script_config.get("id", script_id),
+                        name=script_config.get("name", script_id),
                         type="script",
                         description=script_config.get("description", ""),
                         enabled=script_config.get("enabled", True),
-                        path=script_config["path"]
-                    )
-                    # Add key as additional field
-                    program_info.key = script_id
-                    programs.append(program_info)
+                        path=script_config.get("path", ""),
+                        key=script_id,
+                        docker_image=script_config.get("docker_image")
+                    ))
             
             # Add bots
-            for bot_id, bot_config in self.config.get("bots", {}).items():
+            for bot_id, bot_config in config.get("bots", {}).items():
                 if bot_config.get("enabled", True):
-                    program_info = ProgramInfo(
-                        id=bot_config["id"],
-                        name=bot_config["name"],
+                    programs.append(ProgramInfo(
+                        id=bot_config.get("id", bot_id),
+                        name=bot_config.get("name", bot_id),
                         type="bot",
                         description=bot_config.get("description", ""),
                         enabled=bot_config.get("enabled", True),
-                        path=bot_config["path"]
-                    )
-                    # Add key as additional field
-                    program_info.key = bot_id
-                    programs.append(program_info)
+                        path=bot_config.get("path", ""),
+                        key=bot_id,
+                        docker_image=bot_config.get("docker_image")
+                    ))
             
             return programs
         
