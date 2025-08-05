@@ -11,6 +11,23 @@ scripts:
     main_file: "main.py"
     docker_image: "test-script:latest"  # Custom image for this script
 
+  example_script:
+    id: "example_script"
+    name: "Example Script"
+    path: "scripts/example_script"
+    description: "Example script without custom Docker image"
+    enabled: true
+    main_file: "main.py"
+
+bots:
+  example_bot:
+    id: "example_bot"
+    name: "Example Bot"
+    path: "bots/example_bot"
+    description: "Example bot without custom Docker image"
+    enabled: true
+    main_file: "run.py"
+
 # General system configuration
 settings:
   docker_image: "pyexecutorhub-base"  # Default image for programs without custom image
