@@ -8,7 +8,7 @@ services:
     container_name: pyexecutorhub-api
     image: pyexecutorhub-api:latest
     ports:
-      - "8000:8000"
+      - "8001:8000"
     volumes:
       - .:/project:ro
       - ./config.yaml:/app/config.yaml:ro

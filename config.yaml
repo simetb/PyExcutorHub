@@ -2,71 +2,14 @@
 # Maps unique IDs to script and bot paths
 
 scripts:
-  example_script:
-    id: "example_script"
-    name: "Example Script"
-    path: "scripts/example_script"
-    description: "Example script for production"
+  test_script:
+    id: "test_script"
+    name: "Test Script"
+    path: "scripts/test_script"
+    description: "Simple test script to verify PyExecutorHub functionality"
     enabled: true
     main_file: "main.py"
-    # Optional: Custom Docker image for this script
-    # docker_image: "my-custom-image:latest"
-
-  custom_image_script:
-    id: "custom_image_script"
-    name: "Custom Image Script"
-    path: "scripts/custom_image_script"
-    description: "Script using custom Docker image"
-    enabled: true
-    main_file: "main.py"
-    docker_image: "python:3.11-slim"  # Custom image for this script
-
-  alpine_test:
-    id: "alpine_test"
-    name: "Alpine Python Test"
-    path: "scripts/example_script"
-    description: "Test script using Alpine Linux image"
-    enabled: true
-    main_file: "main.py"
-    docker_image: "python:3.11-alpine"  # Alpine Linux image
-
-  ubuntu_test:
-    id: "ubuntu_test"
-    name: "Ubuntu Python Test"
-    path: "scripts/example_script"
-    description: "Test script using Ubuntu image"
-    enabled: true
-    main_file: "main.py"
-    docker_image: "python:3.12"  # Full Ubuntu image
-
-bots:
-  example_bot:
-    id: "example_bot"
-    name: "Example Bot"
-    path: "bots/example_bot"
-    description: "Example bot for production"
-    enabled: true
-    main_file: "run.py"
-    # Optional: Custom Docker image for this bot
-    # docker_image: "my-custom-bot-image:latest"
-
-  custom_image_bot:
-    id: "custom_image_bot"
-    name: "Custom Image Bot"
-    path: "bots/custom_image_bot"
-    description: "Bot using custom Docker image"
-    enabled: true
-    main_file: "run.py"
-    docker_image: "python:3.12-slim"  # Custom image for this bot
-
-  debian_test:
-    id: "debian_test"
-    name: "Debian Python Test"
-    path: "bots/example_bot"
-    description: "Test bot using Debian image"
-    enabled: true
-    main_file: "run.py"
-    docker_image: "python:3.11"  # Debian-based image
+    docker_image: "test-script:latest"  # Custom image for this script
 
 # General system configuration
 settings:

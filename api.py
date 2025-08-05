@@ -199,15 +199,46 @@ class ServerlessAPI:
             
             # Validate that the Docker image exists (optional check)
             if not await self._validate_docker_image(docker_image):
-                print(f"⚠️ Warning: Docker image '{docker_image}' may not exist. Execution will continue...")
+                print(f"⚠️ Warning: Docker image '{docker_image}' may not exist. Attempting to pull...")
+                if not await self._pull_docker_image(docker_image):
+                    raise Exception(f"Docker image '{docker_image}' not found and could not be pulled. Please ensure the image exists locally or is available in a registry.")
+                print(f"✅ Docker image '{docker_image}' pulled successfully.")
             
             # Build default image if necessary (only for default image, not custom ones)
             if docker_image == self.docker_image:
                 self.build_image()
             
+            # Validate that the main program file exists
+            if not self._validate_program_files(full_host_path, main_file_name):
+                # Try to validate using the container path
+                container_path = Path("/project") / program_path
+                if not self._validate_program_files(container_path, main_file_name):
+                    raise Exception(f"Main program file '{main_file_name}' not found in {full_host_path} or {container_path}. Please ensure the file exists or update the configuration.")
+                else:
+                    print(f"✅ Found main file in container path: {container_path}")
+            
             # Get timeout from config
             config = self.load_config()
             timeout = config.get("settings", {}).get("timeout_seconds", 300)
+            
+            # Log execution details for better tracking
+            print(f"🔍 Execution details:")
+            print(f"   - Program ID: {program_id}")
+            print(f"   - Execution ID: {execution_id}")
+            print(f"   - Docker Image: {docker_image}")
+            print(f"   - Main File: {main_file_name}")
+            print(f"   - Host Path: {full_host_path}")
+            print(f"   - Timeout: {timeout}s")
+            print(f"   - Concurrent Executions: {len([e for e in executions.values() if e.status == 'running'])}")
+            
+            # Check concurrent execution limits
+            max_concurrent = config.get("settings", {}).get("max_concurrent_executions", 5)
+            current_concurrent = len([e for e in executions.values() if e.status == 'running'])
+            
+            if current_concurrent >= max_concurrent:
+                raise Exception(f"Maximum concurrent executions ({max_concurrent}) reached. Please wait for some executions to complete.")
+            
+            print(f"✅ Concurrent execution check passed ({current_concurrent}/{max_concurrent})")
             
             # Prepare Docker command using absolute host path
             docker_cmd = [
@@ -215,16 +246,28 @@ class ServerlessAPI:
                 "-v", f"{str(full_host_path)}:/workspace"
             ]
             
-            # Add environment variables
-            env_vars = self.get_env_vars(full_host_path)
-            for key, value in env_vars.items():
-                docker_cmd.extend(["-e", f"{key}={value}"])
+            # Check if this is a custom Docker image (not the default one)
+            is_custom_image = docker_image != self.docker_image
             
-            # Add environment variables for actions
+            if is_custom_image:
+                # For custom Docker images, use --env-file approach
+                env_file_path = full_host_path / ".env"
+                if env_file_path.exists():
+                    print(f"📄 Using --env-file for custom image: {env_file_path}")
+                    docker_cmd.extend(["--env-file", str(env_file_path)])
+                else:
+                    print(f"⚠️ No .env file found at {env_file_path} for custom image")
+            else:
+                # For default image, use individual environment variables (current behavior)
+                env_vars = self.get_env_vars(full_host_path)
+                for key, value in env_vars.items():
+                    docker_cmd.extend(["-e", f"{key}={value}"])
+            
+            # Add environment variables for actions (always needed)
             docker_cmd.extend(["-e", f"PROGRAM_ID={program_id}"])
             docker_cmd.extend(["-e", f"EXECUTION_ID={execution_id}"])
             
-            # Add parameters as environment variables
+            # Add parameters as environment variables (always needed)
             if parameters:
                 for key, value in parameters.items():
                     docker_cmd.extend(["-e", f"PARAM_{key.upper()}={value}"])
@@ -243,14 +286,23 @@ class ServerlessAPI:
             print(f"🐳 Docker command: {' '.join(docker_cmd)}")
             print(f"🐳 Docker command to run: {docker_cmd}")
             
+            # Log execution start
+            print(f"🚀 Starting Docker execution for {program_id}")
+            print(f"   - Container will run: {docker_image}")
+            print(f"   - Working directory: /workspace")
+            print(f"   - Main file: {main_file_name}")
+            
             # Execute container from host in a separate thread to avoid blocking the event loop
             def run_docker_command():
-                return subprocess.run(
+                print(f"🔧 Executing Docker command for {program_id}...")
+                result = subprocess.run(
                     docker_cmd,
                     capture_output=True,
                     text=True,
                     timeout=timeout
                 )
+                print(f"🏁 Docker execution completed for {program_id} with exit code: {result.returncode}")
+                return result
             
             result = await asyncio.to_thread(run_docker_command)
             
@@ -368,11 +420,6 @@ class ServerlessAPI:
             "max_executions": MAX_EXECUTIONS
         }
     
-    async def add_execution(self, execution: ExecutionStatus):
-        """Add a new execution and clean old ones if necessary"""
-        executions[execution.execution_id] = execution
-        await self.cleanup_old_executions()
-    
     async def _validate_docker_image(self, image_name: str) -> bool:
         """Check if a Docker image exists locally"""
         try:
@@ -388,6 +435,43 @@ class ServerlessAPI:
         except Exception as e:
             print(f"⚠️ Error checking Docker image '{image_name}': {str(e)}")
             return False
+    
+    async def _pull_docker_image(self, image_name: str) -> bool:
+        """Try to pull a Docker image from registry"""
+        try:
+            print(f"📥 Attempting to pull Docker image: {image_name}")
+            def pull_image():
+                result = subprocess.run(
+                    ["docker", "pull", image_name],
+                    capture_output=True,
+                    text=True,
+                    timeout=300  # 5 minutes timeout
+                )
+                return result.returncode == 0
+            
+            success = await asyncio.to_thread(pull_image)
+            if success:
+                print(f"✅ Successfully pulled Docker image: {image_name}")
+            else:
+                print(f"❌ Failed to pull Docker image: {image_name}")
+            return success
+        except Exception as e:
+            print(f"❌ Error pulling Docker image '{image_name}': {str(e)}")
+            return False
+    
+    def _validate_program_files(self, program_path: Path, main_file_name: str) -> bool:
+        """Validate that the main program file exists"""
+        main_file_path = program_path / main_file_name
+        if not main_file_path.exists():
+            # Try alternative files
+            alternative_files = ["main.py", "run.py", "app.py", "index.py"]
+            for alt_file in alternative_files:
+                alt_path = program_path / alt_file
+                if alt_path.exists():
+                    print(f"📄 Found alternative file: {alt_file} instead of {main_file_name}")
+                    return True
+            return False
+        return True
     
     def setup_routes(self):
         """Setup API routes"""
@@ -532,7 +616,8 @@ class ServerlessAPI:
                     "total": 0,
                     "by_status": {},
                     "recent_executions": 0,
-                    "max_executions": MAX_EXECUTIONS
+                    "max_executions": MAX_EXECUTIONS,
+                    "concurrent_executions": 0
                 }
             
             # Count by status
@@ -549,20 +634,40 @@ class ServerlessAPI:
                 if execution.start_time and execution.start_time > cutoff_time
             )
             
+            # Count concurrent executions
+            concurrent_count = len([e for e in executions.values() if e.status == 'running'])
+            
             return {
                 "total": len(executions),
                 "by_status": status_counts,
                 "recent_executions": recent_count,
-                "max_executions": MAX_EXECUTIONS
+                "max_executions": MAX_EXECUTIONS,
+                "concurrent_executions": concurrent_count
+            }
+        
+        @self.app.get("/executions/concurrent", response_model=Dict[str, Any])
+        async def get_concurrent_executions():
+            """Get information about currently running executions"""
+            config = self.load_config() # Load config here to get max_concurrent_executions
+            running_executions = [
+                {
+                    "execution_id": exec_id,
+                    "program_id": exec_status.program_id,
+                    "start_time": exec_status.start_time.isoformat() if exec_status.start_time else None,
+                    "duration_seconds": (datetime.now() - exec_status.start_time).total_seconds() if exec_status.start_time else None
+                }
+                for exec_id, exec_status in executions.items()
+                if exec_status.status == 'running'
+            ]
+            
+            return {
+                "concurrent_count": len(running_executions),
+                "max_concurrent": config.get("settings", {}).get("max_concurrent_executions", 5),
+                "running_executions": running_executions
             }
         
         @self.app.delete("/executions/cleanup")
         async def cleanup_executions():
-            """Manually clean all finished executions"""
-            return await self.manual_cleanup_executions()
-        
-        @self.app.delete("/executions/manual_cleanup")
-        async def manual_cleanup_executions_endpoint():
             """Manually clean all finished executions"""
             return await self.manual_cleanup_executions()
         
@@ -573,6 +678,244 @@ class ServerlessAPI:
                 raise HTTPException(status_code=404, detail="Execution not found")
             
             return executions[execution_id]
+        
+        @self.app.get("/executions/{execution_id}/logs", response_model=Dict[str, Any])
+        async def get_execution_logs(execution_id: str):
+            """Get execution logs with additional details"""
+            if execution_id not in executions:
+                raise HTTPException(status_code=404, detail="Execution not found")
+            
+            execution = executions[execution_id]
+            
+            # Calculate duration if execution has started
+            duration = None
+            if execution.start_time:
+                end_time = execution.end_time or datetime.now()
+                duration = (end_time - execution.start_time).total_seconds()
+            
+            return {
+                "execution_id": execution_id,
+                "program_id": execution.program_id,
+                "status": execution.status,
+                "start_time": execution.start_time.isoformat() if execution.start_time else None,
+                "end_time": execution.end_time.isoformat() if execution.end_time else None,
+                "duration_seconds": duration,
+                "output": execution.output,
+                "error": execution.error,
+                "output_lines": len(execution.output.split('\n')) if execution.output else 0,
+                "error_lines": len(execution.error.split('\n')) if execution.error else 0
+            }
+        
+        @self.app.get("/containers/logs/{image_name}", response_model=Dict[str, Any])
+        async def get_container_logs_by_image(image_name: str):
+            """Get logs from all containers running a specific Docker image"""
+            try:
+                # Get running containers with the specified image
+                def get_containers():
+                    result = subprocess.run(
+                        ["docker", "ps", "--filter", f"ancestor={image_name}", "--format", "{{.ID}}"],
+                        capture_output=True,
+                        text=True
+                    )
+                    return result.stdout.strip().split('\n') if result.stdout.strip() else []
+                
+                container_ids = await asyncio.to_thread(get_containers)
+                
+                if not container_ids:
+                    return {
+                        "image_name": image_name,
+                        "message": f"No running containers found for image: {image_name}",
+                        "containers": [],
+                        "total_containers": 0
+                    }
+                
+                # Get logs for each container
+                container_logs = []
+                for container_id in container_ids:
+                    if container_id:  # Skip empty lines
+                        def get_container_logs(cid):
+                            result = subprocess.run(
+                                ["docker", "logs", "--tail", "100", cid],
+                                capture_output=True,
+                                text=True
+                            )
+                            return {
+                                "container_id": cid,
+                                "stdout": result.stdout,
+                                "stderr": result.stderr,
+                                "logs_lines": len(result.stdout.split('\n')) + len(result.stderr.split('\n'))
+                            }
+                        
+                        logs = await asyncio.to_thread(get_container_logs, container_id)
+                        container_logs.append(logs)
+                
+                return {
+                    "image_name": image_name,
+                    "containers": container_logs,
+                    "total_containers": len(container_logs),
+                    "message": f"Found {len(container_logs)} running containers for image: {image_name}"
+                }
+                
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=f"Error getting container logs: {str(e)}")
+        
+        @self.app.get("/containers/active", response_model=Dict[str, Any])
+        async def get_active_containers():
+            """Get all active containers with their images and basic info"""
+            try:
+                def get_active_containers_info():
+                    result = subprocess.run(
+                        ["docker", "ps", "--format", "table {{.ID}}\t{{.Image}}\t{{.Status}}\t{{.Names}}"],
+                        capture_output=True,
+                        text=True
+                    )
+                    return result.stdout.strip().split('\n')[1:] if result.stdout.strip() else []  # Skip header
+                
+                containers_info = await asyncio.to_thread(get_active_containers_info)
+                
+                containers = []
+                for line in containers_info:
+                    if line.strip():
+                        parts = line.split('\t')
+                        if len(parts) >= 4:
+                            containers.append({
+                                "container_id": parts[0],
+                                "image": parts[1],
+                                "status": parts[2],
+                                "name": parts[3]
+                            })
+                
+                return {
+                    "total_containers": len(containers),
+                    "containers": containers
+                }
+                
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=f"Error getting active containers: {str(e)}")
+        
+        @self.app.get("/images/available", response_model=Dict[str, Any])
+        async def get_available_images():
+            """Get all available Docker images from configuration"""
+            try:
+                config = self.load_config()
+                images = []
+                
+                # Get images from scripts
+                for script_id, script_config in config.get("scripts", {}).items():
+                    if script_config.get("enabled", True):
+                        docker_image = script_config.get("docker_image")
+                        if docker_image:
+                            images.append({
+                                "repository": docker_image.split(':')[0] if ':' in docker_image else docker_image,
+                                "tag": docker_image.split(':')[1] if ':' in docker_image else "latest",
+                                "image_id": "config",
+                                "size": "N/A",
+                                "created_at": "N/A",
+                                "full_name": docker_image,
+                                "source": "script",
+                                "script_id": script_id
+                            })
+                
+                # Get images from bots
+                for bot_id, bot_config in config.get("bots", {}).items():
+                    if bot_config.get("enabled", True):
+                        docker_image = bot_config.get("docker_image")
+                        if docker_image:
+                            images.append({
+                                "repository": docker_image.split(':')[0] if ':' in docker_image else docker_image,
+                                "tag": docker_image.split(':')[1] if ':' in docker_image else "latest",
+                                "image_id": "config",
+                                "size": "N/A",
+                                "created_at": "N/A",
+                                "full_name": docker_image,
+                                "source": "bot",
+                                "bot_id": bot_id
+                            })
+                
+                # Add default image from settings
+                default_image = config.get("settings", {}).get("docker_image", "pyexecutorhub-base")
+                if default_image:
+                    images.append({
+                        "repository": default_image.split(':')[0] if ':' in default_image else default_image,
+                        "tag": default_image.split(':')[1] if ':' in default_image else "latest",
+                        "image_id": "config",
+                        "size": "N/A",
+                        "created_at": "N/A",
+                        "full_name": default_image,
+                        "source": "default",
+                        "description": "Default image for programs without custom image"
+                    })
+                
+                return {
+                    "total_images": len(images),
+                    "images": images
+                }
+                
+            except Exception as e:
+                print(f"❌ Error in get_available_images: {str(e)}")
+                raise HTTPException(status_code=500, detail=f"Error getting available images: {str(e)}")
+        
+        @self.app.get("/images/search/{image_name}", response_model=Dict[str, Any])
+        async def search_images(image_name: str):
+            """Search for specific Docker images in configuration"""
+            try:
+                config = self.load_config()
+                images = []
+                
+                # Search in scripts
+                for script_id, script_config in config.get("scripts", {}).items():
+                    if script_config.get("enabled", True):
+                        docker_image = script_config.get("docker_image")
+                        if docker_image and image_name.lower() in docker_image.lower():
+                            images.append({
+                                "repository": docker_image.split(':')[0] if ':' in docker_image else docker_image,
+                                "tag": docker_image.split(':')[1] if ':' in docker_image else "latest",
+                                "image_id": "config",
+                                "size": "N/A",
+                                "created_at": "N/A",
+                                "full_name": docker_image,
+                                "source": "script",
+                                "script_id": script_id
+                            })
+                
+                # Search in bots
+                for bot_id, bot_config in config.get("bots", {}).items():
+                    if bot_config.get("enabled", True):
+                        docker_image = bot_config.get("docker_image")
+                        if docker_image and image_name.lower() in docker_image.lower():
+                            images.append({
+                                "repository": docker_image.split(':')[0] if ':' in docker_image else docker_image,
+                                "tag": docker_image.split(':')[1] if ':' in docker_image else "latest",
+                                "image_id": "config",
+                                "size": "N/A",
+                                "created_at": "N/A",
+                                "full_name": docker_image,
+                                "source": "bot",
+                                "bot_id": bot_id
+                            })
+                
+                # Search in default image
+                default_image = config.get("settings", {}).get("docker_image", "pyexecutorhub-base")
+                if default_image and image_name.lower() in default_image.lower():
+                    images.append({
+                        "repository": default_image.split(':')[0] if ':' in default_image else default_image,
+                        "tag": default_image.split(':')[1] if ':' in default_image else "latest",
+                        "image_id": "config",
+                        "size": "N/A",
+                        "created_at": "N/A",
+                        "full_name": default_image,
+                        "source": "default",
+                        "description": "Default image for programs without custom image"
+                    })
+                
+                return {
+                    "search_term": image_name,
+                    "total_images": len(images),
+                    "images": images
+                }
+                
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=f"Error searching images: {str(e)}")
 
 # Create API instance
 api = ServerlessAPI()
