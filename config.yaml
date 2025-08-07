@@ -11,6 +11,15 @@ scripts:
     main_file: "main.py"
     docker_image: "test-script:latest"  # Custom image for this script
 
+  extractcredentialsfromemail:
+    id: "1"
+    name: "Extractor de creds CXIOME"
+    path: "scripts/extractcredentialsfromemail"
+    description: "Script scrapping de Emails para credenciales para CXIOME"
+    enabled: true
+    main_file: "run.py"
+    docker_image: "extractcredentialsfromemail:latest"
+
   example_script:
     id: "example_script"
     name: "Example Script"

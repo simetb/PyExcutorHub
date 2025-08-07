@@ -209,13 +209,17 @@ class ServerlessAPI:
                 self.build_image()
             
             # Validate that the main program file exists
-            if not self._validate_program_files(full_host_path, main_file_name):
-                # Try to validate using the container path
-                container_path = Path("/project") / program_path
-                if not self._validate_program_files(container_path, main_file_name):
-                    raise Exception(f"Main program file '{main_file_name}' not found in {full_host_path} or {container_path}. Please ensure the file exists or update the configuration.")
-                else:
-                    print(f"✅ Found main file in container path: {container_path}")
+            # Skip validation for custom Docker images since the code is inside the image
+            if docker_image == self.docker_image:
+                if not self._validate_program_files(full_host_path, main_file_name):
+                    # Try to validate using the container path
+                    container_path = Path("/project") / program_path
+                    if not self._validate_program_files(container_path, main_file_name):
+                        raise Exception(f"Main program file '{main_file_name}' not found in {full_host_path} or {container_path}. Please ensure the file exists or update the configuration.")
+                    else:
+                        print(f"✅ Found main file in container path: {container_path}")
+            else:
+                print(f"✅ Skipping file validation for custom Docker image: {docker_image}")
             
             # Get timeout from config
             config = self.load_config()
@@ -251,12 +255,19 @@ class ServerlessAPI:
             
             if is_custom_image:
                 # For custom Docker images, use --env-file approach
-                env_file_path = full_host_path / ".env"
+                # The .env file is in the host directory that gets mounted to /workspace
+                # Since we're running docker from inside the container, we need to use the host path
+                # The host path is mounted at /project in the container
+                env_file_path = Path("/project") / program_path / ".env"
                 if env_file_path.exists():
                     print(f"📄 Using --env-file for custom image: {env_file_path}")
                     docker_cmd.extend(["--env-file", str(env_file_path)])
                 else:
                     print(f"⚠️ No .env file found at {env_file_path} for custom image")
+                    # Try to use the host path directly since we're running docker from host context
+                    host_env_path = str(full_host_path) + "/.env"
+                    print(f"📄 Trying host path for .env: {host_env_path}")
+                    docker_cmd.extend(["--env-file", host_env_path])
             else:
                 # For default image, use individual environment variables (current behavior)
                 env_vars = self.get_env_vars(full_host_path)
@@ -274,16 +285,23 @@ class ServerlessAPI:
             
             docker_cmd.extend([docker_image])
             
-            # Build container command
-            container_cmd = self._build_container_command(full_host_path, main_file_name)
-            
-            # For Node.js files, use a simpler approach
-            if main_file_name.endswith('.js'):
-                docker_cmd.extend(["node", f"/workspace/{main_file_name}"])
+            # For custom Docker images, use the default CMD from the image
+            # For default images, build a specific command to execute the main file
+            if docker_image == self.docker_image:
+                # Build container command for default image
+                container_cmd = self._build_container_command(full_host_path, main_file_name)
+                
+                # For Node.js files, use a simpler approach
+                if main_file_name.endswith('.js'):
+                    docker_cmd.extend(["node", f"/workspace/{main_file_name}"])
+                else:
+                    docker_cmd.extend(["/bin/sh", "-c", container_cmd])
             else:
-                docker_cmd.extend(["/bin/sh", "-c", container_cmd])
+                # For custom Docker images, use the default CMD from the image
+                print(f"🐳 Using default CMD from custom Docker image: {docker_image}")
+                # No additional command needed - Docker will use the image's default CMD
             
-            print(f"🐳 Docker command: {' '.join(docker_cmd)}")
+            print(f"�� Docker command: {' '.join(docker_cmd)}")
             print(f"🐳 Docker command to run: {docker_cmd}")
             
             # Log execution start
