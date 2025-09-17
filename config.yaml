@@ -11,15 +11,6 @@ scripts:
     main_file: "main.py"
     docker_image: "test-script:latest"  # Custom image for this script
 
-  extractcredentialsfromemail:
-    id: "1"
-    name: "Extractor de creds CXIOME"
-    path: "scripts/extractcredentialsfromemail"
-    description: "Script scrapping de Emails para credenciales para CXIOME"
-    enabled: true
-    main_file: "run.py"
-    docker_image: "extractcredentialsfromemail:latest"
-
   example_script:
     id: "example_script"
     name: "Example Script"
@@ -27,6 +18,7 @@ scripts:
     description: "Example script without custom Docker image"
     enabled: true
     main_file: "main.py"
+    parameters: "--process proceso_2"  # Optional parameters to pass to the script
 
 bots:
   example_bot:
@@ -36,6 +28,7 @@ bots:
     description: "Example bot without custom Docker image"
     enabled: true
     main_file: "run.py"
+    parameters: "--mode production --verbose"  # Optional parameters for the bot
 
 # General system configuration
 settings:

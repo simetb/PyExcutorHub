@@ -141,7 +141,7 @@ test_installation() {
     # Get API port from .env
     API_PORT=$(grep API_PORT .env | cut -d'=' -f2)
     if [ -z "$API_PORT" ]; then
-        API_PORT=8000
+        API_PORT=8001
     fi
     
     # Wait a moment for services to start
@@ -181,7 +181,7 @@ show_usage() {
     echo "   curl http://localhost:$API_PORT/executions/{execution_id}"
     echo ""
     echo -e "${CYAN}Useful Commands:${NC}"
-    echo "• View logs: docker compose logs -f serverless-api"
+    echo "• View logs: docker compose logs -f pyexecutorhub-api"
     echo "• Stop services: docker compose down"
     echo "• Restart services: docker compose restart"
     echo "• View API docs: http://localhost:$API_PORT/docs"

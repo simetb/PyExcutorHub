@@ -7,16 +7,21 @@ FastAPI for executing scripts and bots in Docker containers
 import asyncio
 import json
 import os
+import secrets
+import string
 import subprocess
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import uvicorn
 import yaml
 from dotenv import dotenv_values
-from fastapi import BackgroundTasks, FastAPI, HTTPException
+from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, status
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from jose import JWTError, jwt
+from passlib.context import CryptContext
 from pydantic import BaseModel, Field
 
 # Pydantic models for responses
@@ -40,6 +45,7 @@ class ProgramInfo(BaseModel):
     path: str
     key: Optional[str] = None
     docker_image: Optional[str] = None  # Custom Docker image if specified
+    parameters: Optional[str] = None  # Optional parameters for program execution
 
 class ExecutionStatus(BaseModel):
     execution_id: str
@@ -50,9 +56,39 @@ class ExecutionStatus(BaseModel):
     output: Optional[str] = None
     error: Optional[str] = None
 
+# Authentication models
+class LoginRequest(BaseModel):
+    username: str = Field(..., description="Username for authentication")
+    password: str = Field(..., description="Password for authentication")
+
+class LoginResponse(BaseModel):
+    access_token: str
+    token_type: str
+    expires_in: int
+    username: str
+
+class AuthCredentials(BaseModel):
+    username: str
+    password: str
+    created_at: datetime
+
 # Global state for execution tracking
 executions: Dict[str, ExecutionStatus] = {}
 MAX_EXECUTIONS = 100  # Memory execution limit
+
+# Authentication configuration
+SECRET_KEY = os.getenv("SECRET_KEY", secrets.token_urlsafe(32))
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24  # 24 hours
+
+# Password hashing
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+# Security scheme
+security = HTTPBearer()
+
+# Global auth credentials (generated at startup)
+auth_credentials: Optional[AuthCredentials] = None
 
 # No more lock - we'll use simple atomic operations
 
@@ -68,15 +104,60 @@ class ServerlessAPI:
         # Don't load config here, load it on demand
         print("⚙️ Config will be loaded on demand")
         self.docker_image = "pyexecutorhub-base"  # Default, will be overridden by config
-        # In Docker, the base directory is /app
-        self.base_dir = Path("/app")
+        # Use PROJECT_DIR environment variable or default to /app
+        self.base_dir = Path(os.getenv("PROJECT_DIR", "/app"))
         print("🔧 Setting up routes...")
         self.setup_routes()
         print("✅ ServerlessAPI initialization complete")
     
+    def generate_random_credentials(self) -> AuthCredentials:
+        """Generate random username and password at startup"""
+        # Generate random username (8 characters)
+        username = ''.join(secrets.choice(string.ascii_lowercase + string.digits) for _ in range(8))
+        
+        # Generate random password (12 characters with mixed case, digits, and symbols)
+        password_chars = string.ascii_letters + string.digits + "!@#$%^&*"
+        password = ''.join(secrets.choice(password_chars) for _ in range(12))
+        
+        return AuthCredentials(
+            username=username,
+            password=password,
+            created_at=datetime.now()
+        )
+    
+    def verify_password(self, plain_password: str, hashed_password: str) -> bool:
+        """Verify a password against its hash"""
+        return pwd_context.verify(plain_password, hashed_password)
+    
+    def get_password_hash(self, password: str) -> str:
+        """Hash a password"""
+        return pwd_context.hash(password)
+    
+    def create_access_token(self, data: dict, expires_delta: Optional[timedelta] = None) -> str:
+        """Create a JWT access token"""
+        to_encode = data.copy()
+        if expires_delta:
+            expire = datetime.utcnow() + expires_delta
+        else:
+            expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+        to_encode.update({"exp": expire})
+        encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+        return encoded_jwt
+    
+    def verify_token(self, token: str) -> Optional[str]:
+        """Verify a JWT token and return the username"""
+        try:
+            payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+            username: str = payload.get("sub")
+            if username is None:
+                return None
+            return username
+        except JWTError:
+            return None
+    
     def load_config(self) -> Dict:
         """Load configuration from config.yaml"""
-        config_path = Path("/app/config.yaml")
+        config_path = self.base_dir / "config.yaml"
         if not config_path.exists():
             raise FileNotFoundError("config.yaml not found")
         
@@ -177,7 +258,7 @@ class ServerlessAPI:
                 raise Exception(f"Program '{program_id}' is disabled")
             
             # Use absolute host path for volume mounting
-            host_project_dir = os.getenv("HOST_PROJECT_DIR", "/home/temis/Documents/fractalia/test_produccion")
+            host_project_dir = os.getenv("HOST_PROJECT_DIR", "/app")
             program_path = Path(program_config["path"])
             full_host_path = Path(host_project_dir) / program_path
             print(f"Mounting volume: {str(full_host_path)}:/workspace")
@@ -288,12 +369,24 @@ class ServerlessAPI:
             # For custom Docker images, use the default CMD from the image
             # For default images, build a specific command to execute the main file
             if docker_image == self.docker_image:
+                # Get parameters from program configuration
+                program_parameters = program_config.get("parameters", "")
+                
+                # Log parameters if they exist
+                if program_parameters:
+                    print(f"📋 Program parameters: {program_parameters}")
+                else:
+                    print(f"📋 No parameters configured for this program")
+                
                 # Build container command for default image
-                container_cmd = self._build_container_command(full_host_path, main_file_name)
+                container_cmd = self._build_container_command(full_host_path, main_file_name, program_parameters)
                 
                 # For Node.js files, use a simpler approach
                 if main_file_name.endswith('.js'):
-                    docker_cmd.extend(["node", f"/workspace/{main_file_name}"])
+                    if program_parameters:
+                        docker_cmd.extend(["node", f"/workspace/{main_file_name}", *program_parameters.split()])
+                    else:
+                        docker_cmd.extend(["node", f"/workspace/{main_file_name}"])
                 else:
                     docker_cmd.extend(["/bin/sh", "-c", container_cmd])
             else:
@@ -348,7 +441,7 @@ class ServerlessAPI:
             executions[execution_id].error = str(e)
             print(f"❌ Error executing program {program_id}: {str(e)}")
     
-    def _build_container_command(self, program_path: Path, main_file_name: str) -> str:
+    def _build_container_command(self, program_path: Path, main_file_name: str, parameters: str = "") -> str:
         """Build the command to execute inside the container"""
         commands = []
         
@@ -364,14 +457,26 @@ class ServerlessAPI:
         # Execute the main program and capture exit code
         # Support different interpreters based on file extension
         if main_file_name.endswith('.py'):
-            commands.append(f"python {main_file_name}")
+            if parameters:
+                commands.append(f"python {main_file_name} {parameters}")
+            else:
+                commands.append(f"python {main_file_name}")
         elif main_file_name.endswith('.js'):
-            commands.append(f"node {main_file_name}")
+            if parameters:
+                commands.append(f"node {main_file_name} {parameters}")
+            else:
+                commands.append(f"node {main_file_name}")
         elif main_file_name.endswith('.sh'):
-            commands.append(f"bash {main_file_name}")
+            if parameters:
+                commands.append(f"bash {main_file_name} {parameters}")
+            else:
+                commands.append(f"bash {main_file_name}")
         else:
             # Default to python for unknown extensions
-            commands.append(f"python {main_file_name}")
+            if parameters:
+                commands.append(f"python {main_file_name} {parameters}")
+            else:
+                commands.append(f"python {main_file_name}")
         
         commands.append("EXIT_CODE=$?")
         commands.append("export EXIT_CODE")
@@ -491,8 +596,34 @@ class ServerlessAPI:
             return False
         return True
     
+    async def get_current_user(self, credentials: HTTPAuthorizationCredentials = Depends(security)) -> str:
+        """Dependency to get current authenticated user"""
+        token = credentials.credentials
+        username = self.verify_token(token)
+        if username is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Could not validate credentials",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        return username
+    
     def setup_routes(self):
         """Setup API routes"""
+        
+        # Generate random credentials at startup
+        global auth_credentials
+        if auth_credentials is None:
+            auth_credentials = self.generate_random_credentials()
+            print("\n" + "=" * 60)
+            print("🔐 CREDENCIALES DE USO")
+            print("=" * 60)
+            print(f"👤 Usuario: {auth_credentials.username}")
+            print(f"🔑 Password: {auth_credentials.password}")
+            print("=" * 60)
+            print("💡 Usa estas credenciales para hacer login en /auth/login")
+            print("🔒 Las credenciales solo se muestran una vez por seguridad")
+            print("=" * 60 + "\n")
         
         @self.app.get("/", response_model=Dict[str, str])
         async def root():
@@ -504,13 +635,39 @@ class ServerlessAPI:
                 "container": "docker"
             }
         
+        @self.app.post("/auth/login", response_model=LoginResponse)
+        async def login(request: LoginRequest):
+            """Login with username and password to get access token"""
+            # Check if credentials match
+            if (request.username != auth_credentials.username or 
+                not self.verify_password(request.password, self.get_password_hash(auth_credentials.password))):
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Incorrect username or password",
+                    headers={"WWW-Authenticate": "Bearer"},
+                )
+            
+            # Create access token
+            access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+            access_token = self.create_access_token(
+                data={"sub": request.username}, expires_delta=access_token_expires
+            )
+            
+            return LoginResponse(
+                access_token=access_token,
+                token_type="bearer",
+                expires_in=ACCESS_TOKEN_EXPIRE_MINUTES * 60,  # Convert to seconds
+                username=request.username
+            )
+        
+        
         @self.app.get("/health", response_model=Dict[str, str])
         async def health_check():
             """API health check"""
             return {"status": "healthy", "timestamp": datetime.now().isoformat()}
         
         @self.app.get("/programs", response_model=List[ProgramInfo])
-        async def list_programs():
+        async def list_programs(current_user: str = Depends(self.get_current_user)):
             """List all available programs"""
             print("🔍 /programs endpoint called")
             config = self.load_config()
@@ -528,7 +685,8 @@ class ServerlessAPI:
                         enabled=script_config.get("enabled", True),
                         path=script_config.get("path", ""),
                         key=script_id,
-                        docker_image=script_config.get("docker_image")
+                        docker_image=script_config.get("docker_image"),
+                        parameters=script_config.get("parameters")
                     ))
             
             # Add bots
@@ -542,7 +700,8 @@ class ServerlessAPI:
                         enabled=bot_config.get("enabled", True),
                         path=bot_config.get("path", ""),
                         key=bot_id,
-                        docker_image=bot_config.get("docker_image")
+                        docker_image=bot_config.get("docker_image"),
+                        parameters=bot_config.get("parameters")
                     ))
             
             return programs
@@ -554,7 +713,7 @@ class ServerlessAPI:
             return {"message": "Test endpoint working", "timestamp": datetime.now().isoformat()}
         
         @self.app.post("/execute", response_model=ExecutionResponse)
-        async def execute_program(request: ExecutionRequest, background_tasks: BackgroundTasks):
+        async def execute_program(request: ExecutionRequest, background_tasks: BackgroundTasks, current_user: str = Depends(self.get_current_user)):
             """Execute a program"""
             print(f"🔍 Starting execution for program: {request.program_id}")
             
@@ -610,7 +769,7 @@ class ServerlessAPI:
             )
         
         @self.app.get("/executions", response_model=List[ExecutionStatus])
-        async def list_executions():
+        async def list_executions(current_user: str = Depends(self.get_current_user)):
             """List all executions"""
             print("🔍 /executions endpoint called")
             return list(executions.values())
@@ -627,22 +786,49 @@ class ServerlessAPI:
             }
         
         @self.app.get("/executions/stats", response_model=Dict[str, Any])
-        async def get_executions_stats():
-            """Get execution statistics"""
+        async def get_executions_stats(current_user: str = Depends(self.get_current_user)):
+            """Get execution statistics with detailed program breakdown"""
             if not executions:
                 return {
                     "total": 0,
-                    "by_status": {},
+                    "by_status": {
+                        "completed": [],
+                        "failed": [],
+                        "timeout": [],
+                        "running": [],
+                        "queued": []
+                    },
                     "recent_executions": 0,
                     "max_executions": MAX_EXECUTIONS,
                     "concurrent_executions": 0
                 }
             
-            # Count by status
-            status_counts = {}
+            # Count by status and program
+            status_program_counts = {}
             for execution in executions.values():
                 status = execution.status
-                status_counts[status] = status_counts.get(status, 0) + 1
+                program_id = execution.program_id
+                
+                if status not in status_program_counts:
+                    status_program_counts[status] = {}
+                
+                if program_id not in status_program_counts[status]:
+                    status_program_counts[status][program_id] = 0
+                
+                status_program_counts[status][program_id] += 1
+            
+            # Convert to the requested format
+            by_status = {}
+            for status in ["completed", "failed", "timeout", "running", "queued"]:
+                by_status[status] = []
+                if status in status_program_counts:
+                    for program_id, count in status_program_counts[status].items():
+                        by_status[status].append({
+                            "name": program_id,
+                            "total": count
+                        })
+                    # Sort by count (descending) then by name
+                    by_status[status].sort(key=lambda x: (-x["total"], x["name"]))
             
             # Count recent executions (last 24 hours)
             from datetime import timedelta
@@ -657,7 +843,7 @@ class ServerlessAPI:
             
             return {
                 "total": len(executions),
-                "by_status": status_counts,
+                "by_status": by_status,
                 "recent_executions": recent_count,
                 "max_executions": MAX_EXECUTIONS,
                 "concurrent_executions": concurrent_count
@@ -690,7 +876,7 @@ class ServerlessAPI:
             return await self.manual_cleanup_executions()
         
         @self.app.get("/executions/{execution_id}", response_model=ExecutionStatus)
-        async def get_execution_status(execution_id: str):
+        async def get_execution_status(execution_id: str, current_user: str = Depends(self.get_current_user)):
             """Get execution status"""
             if execution_id not in executions:
                 raise HTTPException(status_code=404, detail="Execution not found")
@@ -698,7 +884,7 @@ class ServerlessAPI:
             return executions[execution_id]
         
         @self.app.get("/executions/{execution_id}/logs", response_model=Dict[str, Any])
-        async def get_execution_logs(execution_id: str):
+        async def get_execution_logs(execution_id: str, current_user: str = Depends(self.get_current_user)):
             """Get execution logs with additional details"""
             if execution_id not in executions:
                 raise HTTPException(status_code=404, detail="Execution not found")

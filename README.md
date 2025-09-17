@@ -4,37 +4,40 @@
 
 > **IMPORTANT**: This system is designed for Python scripts and bots only. Do NOT use GUI libraries like `tkinter`, `PyQt`, `wxPython`, or any graphical libraries as they will cause execution failures in the serverless environment.
 
-## 🚀 Latest Updates (v1.2.0)
+## 🚀 Latest Updates (v1.3.0)
 
 ### ✨ New Features
-- **Test Script Included**: Simple test script to verify PyExecutorHub functionality
-- **Configuration-based Image Management**: Docker images are now managed from configuration
-- **Automatic Container Cleanup**: Containers are removed with `--rm` flag
-- **Enhanced Validation**: Smart file detection and Docker image validation
-- **Concurrent Execution Control**: Configurable limits for concurrent executions
-- **Container Logs by Image**: View logs from all containers running a specific Docker image
-- **Active Container Monitoring**: Real-time monitoring of all active containers
-- **Enhanced Error Handling**: Better error messages and validation
+- **🔐 Secure Authentication System**: JWT-based authentication with random credentials generated at startup
+- **📋 Parameterized Program Execution**: Configure command-line parameters for each program
+- **📊 Enhanced Statistics**: Detailed execution breakdown by status and program name
+- **🐳 LibreOffice Integration**: Base image now includes LibreOffice suite for document processing
+- **🔧 Improved Base Image**: Upgraded pip and added comprehensive LibreOffice packages
+- **📝 Better Logging**: Enhanced parameter logging and execution tracking
+- **🛡️ Endpoint Protection**: All API endpoints now require authentication
 
 ### 🔧 Improvements
-- **Docker Image Management**: Images are read from configuration, not system
-- **Execution Limits**: Prevent system overload with concurrent execution limits
-- **Better Logging**: Detailed execution logs with timing and status
-- **Code Cleanup**: Removed unnecessary endpoints and methods
-- **Port Configuration**: Updated to use port 8001 for consistency
+- **Configuration Management**: Added parameters field to program configuration
+- **Multi-language Parameter Support**: Parameters work with Python, Node.js, and Shell scripts
+- **Security Enhancement**: Credentials shown only once at startup for security
+- **Resource Optimization**: Updated CPU limits and memory configuration
+- **Error Handling**: Better validation and error messages for parameters
+- **Documentation**: Comprehensive examples and usage guides
 
 ### 🐛 Bug Fixes
-- **Duplicate Endpoints**: Removed redundant cleanup endpoints
-- **Memory Management**: Improved execution tracking and cleanup
-- **Error Handling**: More specific error messages for debugging
-- **File Validation**: Fixed path validation for container execution
+- **Port Consistency**: Fixed port configuration across all files (8001)
+- **Service Name Alignment**: Corrected service names in scripts and documentation
+- **Path Configuration**: Fixed hardcoded paths and environment variable usage
+- **Resource Limits**: Aligned CPU limits between configuration and Docker Compose
+- **Authentication Flow**: Streamlined login process and token management
 
 ## 📋 Table of Contents
 
 - [Overview](#overview)
 - [Architecture](#architecture)
 - [Installation](#installation)
+- [Authentication](#authentication)
 - [Configuration](#configuration)
+- [Parameterized Execution](#parameterized-execution)
 - [Custom Docker Images](#custom-docker-images)
 - [Usage](#usage)
 - [API Endpoints](#api-endpoints)
@@ -48,14 +51,17 @@
 PyExecutorHub is a serverless execution platform that allows you to run Python scripts and bots in isolated Docker containers. It provides a REST API for program execution, monitoring, and management with advanced container monitoring capabilities.
 
 ### Key Features
-- **Isolated Execution**: Each program runs in its own Docker container
-- **Custom Docker Images**: Use specific images for different runtime requirements
-- **Real-time Monitoring**: Track execution status and logs
-- **Container Monitoring**: View logs by Docker image and active containers
-- **Flexible Configuration**: Easy setup and customization
-- **Actions System**: Pre and post-execution hooks
-- **Multi-language Support**: Python, Node.js, and shell scripts
-- **Concurrent Control**: Prevent system overload with execution limits
+- **🔐 Secure Authentication**: JWT-based authentication with random credentials
+- **📋 Parameterized Execution**: Configure command-line parameters for each program
+- **🏗️ Isolated Execution**: Each program runs in its own Docker container
+- **🐳 Custom Docker Images**: Use specific images for different runtime requirements
+- **📊 Real-time Monitoring**: Track execution status and detailed statistics
+- **🔍 Container Monitoring**: View logs by Docker image and active containers
+- **⚙️ Flexible Configuration**: Easy setup and customization
+- **🔧 Actions System**: Pre and post-execution hooks
+- **🌐 Multi-language Support**: Python, Node.js, and shell scripts
+- **⚡ Concurrent Control**: Prevent system overload with execution limits
+- **📄 LibreOffice Integration**: Document processing capabilities
 
 ## 🏗️ Architecture
 
@@ -112,6 +118,80 @@ API_HOST=0.0.0.0
 API_PORT=8001
 ```
 
+## 🔐 Authentication
+
+### Overview
+PyExecutorHub now includes a secure authentication system that generates random credentials at startup and uses JWT tokens for API access.
+
+### Security Features
+- **🔑 Random Credentials**: Username and password generated automatically at startup
+- **🎫 JWT Tokens**: Secure token-based authentication for API access
+- **⏰ Token Expiration**: Tokens expire after 24 hours for security
+- **🛡️ Endpoint Protection**: All API endpoints require authentication
+- **🔒 One-time Display**: Credentials shown only once at startup
+
+### Getting Started
+
+#### 1. **Start the System**
+```bash
+docker compose up -d --build
+```
+
+#### 2. **Get Credentials**
+The system will display credentials at startup:
+```
+🔐 CREDENCIALES DE USO
+============================================================
+👤 Usuario: abc123def
+🔑 Password: xY9#mK2$pL8
+============================================================
+💡 Usa estas credenciales para hacer login en /auth/login
+🔒 Las credenciales solo se muestran una vez por seguridad
+============================================================
+```
+
+#### 3. **Login to Get Token**
+```bash
+curl -X POST http://localhost:8001/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username": "abc123def", "password": "xY9#mK2$pL8"}'
+```
+
+**Response:**
+```json
+{
+  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "token_type": "bearer",
+  "expires_in": 86400,
+  "username": "abc123def"
+}
+```
+
+#### 4. **Use Token for API Calls**
+```bash
+# Get programs list
+curl -H "Authorization: Bearer YOUR_TOKEN" http://localhost:8001/programs
+
+# Execute a program
+curl -X POST http://localhost:8001/execute \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"program_id": "example_script"}'
+```
+
+### Authentication Endpoints
+
+#### Login
+- **POST** `/auth/login`
+- **Body**: `{"username": "string", "password": "string"}`
+- **Response**: JWT token and user information
+
+### Security Notes
+- **Credentials are generated once** at startup and shown only once
+- **No endpoint to retrieve credentials** after startup for security
+- **Tokens expire after 24 hours** and must be renewed
+- **All API endpoints require authentication** except `/health` and `/auth/login`
+
 ## Configuration
 
 The system uses a `config.yaml` file to define available scripts and bots. This file is mounted as a volume, allowing you to modify the configuration without rebuilding the container.
@@ -150,6 +230,141 @@ To add a new program:
 1. Edit `config.yaml` and add your program configuration
 2. The new program will be available immediately via the API
 3. No container restart or rebuild needed
+
+## 📋 Parameterized Execution
+
+### Overview
+PyExecutorHub now supports parameterized program execution, allowing you to configure command-line parameters for each program in the configuration file.
+
+### Configuration
+Add a `parameters` field to your program configuration:
+
+```yaml
+scripts:
+  example_script:
+    id: "example_script"
+    name: "Example Script"
+    path: "scripts/example_script"
+    description: "Example script with parameters"
+    enabled: true
+    main_file: "main.py"
+    parameters: "--process proceso_2 --verbose"  # Optional parameters
+
+bots:
+  data_processor:
+    id: "data_processor"
+    name: "Data Processor"
+    path: "bots/data_processor"
+    description: "Process data with custom parameters"
+    enabled: true
+    main_file: "run.py"
+    parameters: "--input data.csv --output results.json --format json"
+```
+
+### How It Works
+When a program is executed, the system automatically appends the configured parameters to the command:
+
+**Without parameters:**
+```bash
+python main.py
+```
+
+**With parameters:**
+```bash
+python main.py --process proceso_2 --verbose
+```
+
+### Multi-language Support
+Parameters work with different file types:
+
+#### Python Scripts
+```yaml
+parameters: "--verbose --output /tmp/result.txt"
+# Executes: python main.py --verbose --output /tmp/result.txt
+```
+
+#### Node.js Scripts
+```yaml
+parameters: "--mode production --port 8080"
+# Executes: node main.js --mode production --port 8080
+```
+
+#### Shell Scripts
+```yaml
+parameters: "--config /etc/app.conf --debug"
+# Executes: bash script.sh --config /etc/app.conf --debug
+```
+
+### Examples
+
+#### Basic Parameters
+```yaml
+my_script:
+  parameters: "--verbose"
+```
+
+#### Multiple Parameters
+```yaml
+api_client:
+  parameters: "--host api.example.com --port 8080 --timeout 30"
+```
+
+#### Complex Parameters
+```yaml
+data_processor:
+  parameters: "--input data.csv --output results.json --format json --compress"
+```
+
+### Program Implementation
+Your programs can access command-line arguments using standard methods:
+
+#### Python Example
+```python
+#!/usr/bin/env python3
+import sys
+import argparse
+
+def main():
+    parser = argparse.ArgumentParser(description='My Program')
+    parser.add_argument('--process', help='Process name')
+    parser.add_argument('--verbose', action='store_true', help='Verbose output')
+    
+    args = parser.parse_args()
+    
+    print(f"Process: {args.process}")
+    print(f"Verbose: {args.verbose}")
+    
+    return 0
+
+if __name__ == "__main__":
+    sys.exit(main())
+```
+
+#### Node.js Example
+```javascript
+#!/usr/bin/env node
+const args = process.argv.slice(2);
+const processName = args.find(arg => arg.startsWith('--process'))?.split('=')[1];
+const verbose = args.includes('--verbose');
+
+console.log(`Process: ${processName}`);
+console.log(`Verbose: ${verbose}`);
+```
+
+### Logging
+The system logs parameter usage for debugging:
+
+```
+📋 Program parameters: --process proceso_2 --verbose
+🐳 Docker command: ... python main.py --process proceso_2 --verbose ...
+```
+
+### Best Practices
+1. **Use descriptive parameter names** for clarity
+2. **Document parameters** in your program's help text
+3. **Validate parameters** in your program code
+4. **Use consistent naming** across similar programs
+5. **Test parameters** before production deployment
 
 ## 🐳 Custom Docker Images
 
@@ -231,46 +446,118 @@ function main() {
 main();
 ```
 
+### Base Image Features
+The default `pyexecutorhub-base` image includes:
+
+#### Python Environment
+- **Python 3.11** with latest pip
+- **MariaDB driver** for database connections
+- **System dependencies** for common Python packages
+
+#### LibreOffice Suite
+- **LibreOffice Writer** - Document processing
+- **LibreOffice Calc** - Spreadsheet operations
+- **LibreOffice Impress** - Presentation creation
+- **LibreOffice Draw** - Vector graphics
+- **LibreOffice Math** - Formula editing
+- **LibreOffice Base** - Database management
+
+#### Usage Examples
+```python
+#!/usr/bin/env python3
+import subprocess
+import os
+
+def convert_document():
+    """Convert a document using LibreOffice"""
+    input_file = "/workspace/document.docx"
+    output_dir = "/workspace/output"
+    
+    # Create output directory
+    os.makedirs(output_dir, exist_ok=True)
+    
+    # Convert document to PDF
+    cmd = [
+        "libreoffice",
+        "--headless",
+        "--convert-to", "pdf",
+        "--outdir", output_dir,
+        input_file
+    ]
+    
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    
+    if result.returncode == 0:
+        print("✅ Document converted successfully")
+    else:
+        print(f"❌ Conversion failed: {result.stderr}")
+    
+    return result.returncode
+
+if __name__ == "__main__":
+    exit(convert_document())
+```
+
 ### Best Practices
 1. **Use specific versions** instead of `latest`
 2. **Choose lightweight images** when possible
 3. **Test your images** before production
 4. **Document image requirements** in your code
 5. **Use multi-stage builds** for complex setups
+6. **Leverage LibreOffice** for document processing tasks
 
 ## 📖 Usage
 
 ### API Endpoints
 
-#### List Programs
+#### 1. Login to Get Token
 ```bash
-curl http://localhost:8001/programs
+curl -X POST http://localhost:8001/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username": "YOUR_USERNAME", "password": "YOUR_PASSWORD"}'
 ```
 
-#### Execute Program
+#### 2. List Programs (with parameters)
+```bash
+curl -H "Authorization: Bearer YOUR_TOKEN" http://localhost:8001/programs
+```
+
+#### 3. Execute Program (with configured parameters)
 ```bash
 curl -X POST http://localhost:8001/execute \
+  -H "Authorization: Bearer YOUR_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"program_id": "test_script", "parameters": {"param1": "value1"}}'
+  -d '{"program_id": "example_script"}'
 ```
 
-#### Check Execution Status
+#### 4. Check Execution Status
 ```bash
-curl http://localhost:8001/executions/{execution_id}
+curl -H "Authorization: Bearer YOUR_TOKEN" http://localhost:8001/executions/{execution_id}
 ```
 
-#### Test Script Example
+#### 5. Get Detailed Statistics
 ```bash
-# Execute the test script
+curl -H "Authorization: Bearer YOUR_TOKEN" http://localhost:8001/executions/stats
+```
+
+#### Complete Example
+```bash
+# 1. Login
+TOKEN=$(curl -s -X POST http://localhost:8001/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username": "abc123def", "password": "xY9#mK2$pL8"}' | jq -r '.access_token')
+
+# 2. List programs
+curl -H "Authorization: Bearer $TOKEN" http://localhost:8001/programs
+
+# 3. Execute program with parameters
 curl -X POST http://localhost:8001/execute \
+  -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"program_id": "test_script"}'
+  -d '{"program_id": "example_script"}'
 
-# Check status
-curl http://localhost:8001/executions/{execution_id}
-
-# Get detailed logs
-curl http://localhost:8001/executions/{execution_id}/logs
+# 4. Check status
+curl -H "Authorization: Bearer $TOKEN" http://localhost:8001/executions/{execution_id}
 ```
 
 ### Program Structure
@@ -295,28 +582,37 @@ bots/
 
 ## 🔌 API Endpoints
 
-### Core Endpoints
+### Authentication Endpoints
+- `POST /auth/login` - Login to get JWT token
+- `GET /health` - Health check (no authentication required)
+
+### Core Endpoints (Authentication Required)
 - `GET /` - API information
-- `GET /health` - Health check
-- `GET /programs` - List all programs
-- `POST /execute` - Execute a program
+- `GET /programs` - List all programs with parameters
+- `POST /execute` - Execute a program with parameters
 - `GET /executions` - List all executions
 - `GET /executions/{id}` - Get execution status
 
-### Management Endpoints
+### Management Endpoints (Authentication Required)
 - `GET /executions/info` - Execution statistics
-- `GET /executions/stats` - Detailed statistics
+- `GET /executions/stats` - Detailed statistics by status and program
 - `GET /executions/concurrent` - Concurrent execution information
 - `DELETE /executions/cleanup` - Cleanup finished executions
 
-### Container Monitoring Endpoints
+### Container Monitoring Endpoints (Authentication Required)
 - `GET /containers/logs/{image_name}` - Get logs from containers by Docker image
 - `GET /containers/active` - Get all active containers
 - `GET /executions/{execution_id}/logs` - Get detailed execution logs with timing
 
-### Docker Images Endpoints
+### Docker Images Endpoints (Authentication Required)
 - `GET /images/available` - Get all available Docker images from configuration
 - `GET /images/search/{image_name}` - Search for specific Docker images in configuration
+
+### Authentication Header
+All protected endpoints require the following header:
+```
+Authorization: Bearer YOUR_JWT_TOKEN
+```
 
 ## 🧪 Test Script
 
@@ -441,7 +737,7 @@ Get detailed execution information with timing:
 
 ```bash
 # Get detailed execution logs
-curl http://localhost:8001/executions/{execution_id}/logs
+curl -H "Authorization: Bearer YOUR_TOKEN" http://localhost:8001/executions/{execution_id}/logs
 
 # Response
 {
@@ -455,6 +751,39 @@ curl http://localhost:8001/executions/{execution_id}/logs
   "error": "",
   "output_lines": 10,
   "error_lines": 0
+}
+```
+
+### Detailed Statistics
+Get comprehensive execution statistics with program breakdown:
+
+```bash
+# Get detailed statistics
+curl -H "Authorization: Bearer YOUR_TOKEN" http://localhost:8001/executions/stats
+
+# Response
+{
+  "total": 395,
+  "by_status": {
+    "completed": [
+      {"total": 350, "name": "example_script"},
+      {"total": 200, "name": "data_processor"},
+      {"total": 150, "name": "test_script"}
+    ],
+    "failed": [
+      {"total": 4, "name": "example_script"},
+      {"total": 2, "name": "data_processor"}
+    ],
+    "timeout": [
+      {"total": 1, "name": "long_running_script"}
+    ],
+    "running": [
+      {"total": 2, "name": "example_script"}
+    ],
+    "queued": [
+      {"total": 1, "name": "data_processor"}
+    ]
+  }
 }
 ```
 
@@ -803,10 +1132,29 @@ curl http://localhost:8000/executions
 
 ### Common Issues
 
+#### Authentication Issues
+```bash
+# Check if API is running
+curl http://localhost:8001/health
+
+# Get credentials from logs
+docker compose logs pyexecutorhub-api | grep -A 5 "CREDENCIALES DE USO"
+
+# Test login
+curl -X POST http://localhost:8001/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username": "YOUR_USERNAME", "password": "YOUR_PASSWORD"}'
+```
+
 #### Program Not Found
 ```bash
+# Login first
+TOKEN=$(curl -s -X POST http://localhost:8001/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username": "YOUR_USERNAME", "password": "YOUR_PASSWORD"}' | jq -r '.access_token')
+
 # Check if program exists
-curl http://localhost:8001/programs
+curl -H "Authorization: Bearer $TOKEN" http://localhost:8001/programs
 
 # Verify configuration
 cat config.yaml
@@ -815,10 +1163,19 @@ cat config.yaml
 #### Execution Failures
 ```bash
 # Check execution status
-curl http://localhost:8001/executions/{execution_id}
+curl -H "Authorization: Bearer $TOKEN" http://localhost:8001/executions/{execution_id}
 
 # View container logs
 docker logs pyexecutorhub-api
+```
+
+#### Parameter Issues
+```bash
+# Check if parameters are configured
+curl -H "Authorization: Bearer $TOKEN" http://localhost:8001/programs | jq '.[] | {id, name, parameters}'
+
+# Check execution logs for parameter usage
+docker compose logs pyexecutorhub-api | grep "Program parameters"
 ```
 
 #### Docker Image Issues
@@ -832,10 +1189,12 @@ docker pull python:3.11-slim
 
 ### Debugging Steps
 1. **Check API health**: `curl http://localhost:8001/health`
-2. **Verify configuration**: Review `config.yaml`
-3. **Check Docker**: `docker ps -a`
-4. **View logs**: `docker logs pyexecutorhub-api`
-5. **Test manually**: Run program directly in container
+2. **Get credentials**: `docker compose logs pyexecutorhub-api | grep -A 5 "CREDENCIALES"`
+3. **Login and get token**: Use the credentials to get a JWT token
+4. **Verify configuration**: Review `config.yaml` for parameters
+5. **Check Docker**: `docker ps -a`
+6. **View logs**: `docker logs pyexecutorhub-api`
+7. **Test manually**: Run program directly in container
 
 ### Performance Optimization
 - **Use lightweight images** (alpine, slim)

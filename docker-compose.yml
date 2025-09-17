@@ -24,10 +24,10 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '1.0'
+          cpus: '0.5'
           memory: 1G
         reservations:
-          cpus: '0.5'
+          cpus: '0.25'
           memory: 512M
     # Configuración de seguridad
     security_opt:
