@@ -1,6 +1,18 @@
 version: '3.8'
 
 services:
+  # Build base image for program execution
+  pyexecutorhub-base:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: pyexecutorhub-base:latest
+    # This service only builds the image, doesn't run
+    command: ["echo", "Base image built successfully"]
+    profiles:
+      - build-only
+
+  # Main API service
   pyexecutorhub-api:
     build:
       context: .

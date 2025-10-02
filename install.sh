@@ -123,13 +123,23 @@ configure_environment() {
 
 # Build and start services
 start_services() {
-    print_info "Building and starting PyExecutorHub services..."
+    print_info "Building PyExecutorHub base image..."
     
-    # Build and start with Docker Compose
-    if docker compose up -d --build; then
-        print_status "Services started successfully"
+    # Build base image first
+    if docker compose build pyexecutorhub-base; then
+        print_status "Base image built successfully"
     else
-        print_error "Failed to start services"
+        print_error "Failed to build base image"
+        exit 1
+    fi
+    
+    print_info "Building and starting PyExecutorHub API service..."
+    
+    # Build and start API service
+    if docker compose up -d --build pyexecutorhub-api; then
+        print_status "API service started successfully"
+    else
+        print_error "Failed to start API service"
         exit 1
     fi
 }
@@ -169,21 +179,28 @@ show_usage() {
     print_info "PyExecutorHub is now running!"
     echo ""
     echo -e "${CYAN}Quick Start:${NC}"
-    echo "1. View available programs:"
-    echo "   curl http://localhost:$API_PORT/programs"
+    echo "1. Get credentials from logs:"
+    echo "   docker compose logs pyexecutorhub-api | grep -A 5 'CREDENCIALES DE USO'"
     echo ""
-    echo "2. Execute a script:"
+    echo "2. Login to get token:"
+    echo "   curl -X POST http://localhost:$API_PORT/auth/login \\"
+    echo "     -H \"Content-Type: application/json\" \\"
+    echo "     -d '{\"username\": \"YOUR_USERNAME\", \"password\": \"YOUR_PASSWORD\"}'"
+    echo ""
+    echo "3. View available programs:"
+    echo "   curl -H \"Authorization: Bearer YOUR_TOKEN\" http://localhost:$API_PORT/programs"
+    echo ""
+    echo "4. Execute a script:"
     echo "   curl -X POST http://localhost:$API_PORT/execute \\"
+    echo "     -H \"Authorization: Bearer YOUR_TOKEN\" \\"
     echo "     -H \"Content-Type: application/json\" \\"
     echo "     -d '{\"program_id\": \"example_script\"}'"
-    echo ""
-    echo "3. Check execution status:"
-    echo "   curl http://localhost:$API_PORT/executions/{execution_id}"
     echo ""
     echo -e "${CYAN}Useful Commands:${NC}"
     echo "• View logs: docker compose logs -f pyexecutorhub-api"
     echo "• Stop services: docker compose down"
     echo "• Restart services: docker compose restart"
+    echo "• Rebuild base image: docker compose build pyexecutorhub-base"
     echo "• View API docs: http://localhost:$API_PORT/docs"
     echo ""
     echo -e "${YELLOW}Documentation:${NC} README.md"

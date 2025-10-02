@@ -97,9 +97,32 @@ cp env.example .env
 # Edit .env with your settings
 nano .env
 
-# Start the system
+# Start the system (builds both base image and API)
 docker compose up -d --build
+
+# Or use the installer script
+chmod +x install.sh
+./install.sh
 ```
+
+### Automated Installation
+Use the provided installer script for a complete setup:
+
+```bash
+# Make script executable
+chmod +x install.sh
+
+# Run installer
+./install.sh
+```
+
+The installer will:
+- ✅ Check system requirements
+- ✅ Configure environment
+- ✅ Build base image with LibreOffice
+- ✅ Build and start API service
+- ✅ Test the installation
+- ✅ Show usage instructions
 
 ### Environment Configuration
 Edit `.env` file:
@@ -498,6 +521,32 @@ if __name__ == "__main__":
     exit(convert_document())
 ```
 
+### Building Images
+
+#### Build Base Image Only
+```bash
+# Build only the base image with LibreOffice
+docker compose build pyexecutorhub-base
+```
+
+#### Build API Service Only
+```bash
+# Build only the API service
+docker compose build pyexecutorhub-api
+```
+
+#### Build All Images
+```bash
+# Build both base image and API service
+docker compose build
+```
+
+#### Rebuild and Start
+```bash
+# Rebuild and start all services
+docker compose up -d --build
+```
+
 ### Best Practices
 1. **Use specific versions** instead of `latest`
 2. **Choose lightweight images** when possible
@@ -505,6 +554,7 @@ if __name__ == "__main__":
 4. **Document image requirements** in your code
 5. **Use multi-stage builds** for complex setups
 6. **Leverage LibreOffice** for document processing tasks
+7. **Build base image first** when making changes to dependencies
 
 ## 📖 Usage
 

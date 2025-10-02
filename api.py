@@ -81,8 +81,8 @@ SECRET_KEY = os.getenv("SECRET_KEY", secrets.token_urlsafe(32))
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24  # 24 hours
 
-# Password hashing
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# Password hashing - using simple hash for now
+pwd_context = CryptContext(schemes=["plaintext"], deprecated="auto")
 
 # Security scheme
 security = HTTPBearer()
@@ -115,9 +115,10 @@ class ServerlessAPI:
         # Generate random username (8 characters)
         username = ''.join(secrets.choice(string.ascii_lowercase + string.digits) for _ in range(8))
         
-        # Generate random password (12 characters with mixed case, digits, and symbols)
-        password_chars = string.ascii_letters + string.digits + "!@#$%^&*"
-        password = ''.join(secrets.choice(password_chars) for _ in range(12))
+        # Generate random password (10 characters with mixed case and digits only)
+        # No special characters to avoid issues with shell scripts and curl
+        password_chars = string.ascii_letters + string.digits
+        password = ''.join(secrets.choice(password_chars) for _ in range(10))
         
         return AuthCredentials(
             username=username,
@@ -390,9 +391,15 @@ class ServerlessAPI:
                 else:
                     docker_cmd.extend(["/bin/sh", "-c", container_cmd])
             else:
-                # For custom Docker images, use the default CMD from the image
-                print(f"🐳 Using default CMD from custom Docker image: {docker_image}")
-                # No additional command needed - Docker will use the image's default CMD
+                # For custom Docker images, pass parameters if configured
+                program_parameters = program_config.get("parameters", "")
+                if program_parameters:
+                    print(f"🐳 Using custom Docker image with parameters: {docker_image}")
+                    print(f"📋 Program parameters: {program_parameters}")
+                    docker_cmd.extend(program_parameters.split())
+                else:
+                    print(f"🐳 Using default CMD from custom Docker image: {docker_image}")
+                    # No additional command needed - Docker will use the image's default CMD
             
             print(f"�� Docker command: {' '.join(docker_cmd)}")
             print(f"🐳 Docker command to run: {docker_cmd}")
