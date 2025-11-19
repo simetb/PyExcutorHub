@@ -25,14 +25,18 @@ services:
       - .:/project:ro
       - ./config.yaml:/app/config.yaml:ro
       - /var/run/docker.sock:/var/run/docker.sock
-      - /usr/bin/docker:/usr/bin/docker:ro
+      # Optional: Mount Docker binary if needed for Docker-in-Docker scenarios
+      # Uncomment the line below if you need to use Docker commands inside containers
+      # - /usr/bin/docker:/usr/bin/docker:ro
+      # Example: Mount external scripts directory (if using external scripts)
+      # - /docker/scripts:/docker/scripts:ro
     env_file:
       - .env
     environment:
       - PYTHONUNBUFFERED=1
       - PROJECT_DIR=/project
     restart: unless-stopped
-    # Configuración de recursos para producción
+    # Production resource configuration
     deploy:
       resources:
         limits:
@@ -41,7 +45,7 @@ services:
         reservations:
           cpus: '0.25'
           memory: 512M
-    # Configuración de seguridad
+    # Security configuration
     security_opt:
       - no-new-privileges:true
     read_only: false

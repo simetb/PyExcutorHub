@@ -4,18 +4,24 @@
 
 > **IMPORTANT**: This system is designed for Python scripts and bots only. Do NOT use GUI libraries like `tkinter`, `PyQt`, `wxPython`, or any graphical libraries as they will cause execution failures in the serverless environment.
 
-## 🚀 Latest Updates (v1.3.0)
+## 🚀 Latest Updates (v1.4.0)
 
 ### ✨ New Features
+- **🏗️ Modular Architecture**: Complete codebase refactoring with separated routes, services, models, and utilities
+- **📦 Distributed Structure**: Code organized by endpoints for better maintainability and scalability
 - **🔐 Secure Authentication System**: JWT-based authentication with random credentials generated at startup
 - **📋 Parameterized Program Execution**: Configure command-line parameters for each program
 - **📊 Enhanced Statistics**: Detailed execution breakdown by status and program name
 - **🐳 LibreOffice Integration**: Base image now includes LibreOffice suite for document processing
+- **📁 External Scripts Support**: Mount external directories as volumes for scripts/bots outside the project
 - **🔧 Improved Base Image**: Upgraded pip and added comprehensive LibreOffice packages
 - **📝 Better Logging**: Enhanced parameter logging and execution tracking
 - **🛡️ Endpoint Protection**: All API endpoints now require authentication
 
 ### 🔧 Improvements
+- **Code Organization**: Separated concerns into routes/, services/, models/, and utils/ directories
+- **Maintainability**: Each endpoint has its own route file for easier maintenance
+- **Scalability**: Easy to add new endpoints and services without modifying core files
 - **Configuration Management**: Added parameters field to program configuration
 - **Multi-language Parameter Support**: Parameters work with Python, Node.js, and Shell scripts
 - **Security Enhancement**: Credentials shown only once at startup for security
@@ -37,6 +43,10 @@
 - [Installation](#installation)
 - [Authentication](#authentication)
 - [Configuration](#configuration)
+  - [Configuration Options](#configuration-options)
+  - [Docker Compose Execution](#docker-compose-execution)
+  - [External Scripts and Bots (Volume Mounting)](#external-scripts-and-bots-volume-mounting)
+  - [Real-time Configuration Updates](#real-time-configuration-updates)
 - [Parameterized Execution](#parameterized-execution)
 - [Custom Docker Images](#custom-docker-images)
 - [Usage](#usage)
@@ -65,6 +75,7 @@ PyExecutorHub is a serverless execution platform that allows you to run Python s
 
 ## 🏗️ Architecture
 
+### System Architecture
 ```
 ┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
 │   Client/API    │───▶│  FastAPI Server  │───▶│  Docker Engine  │
@@ -77,6 +88,44 @@ PyExecutorHub is a serverless execution platform that allows you to run Python s
                        │  (Scripts/Bots)  │
                        └──────────────────┘
 ```
+
+### Code Structure (v1.4.0)
+The codebase is now organized in a modular structure for better maintainability:
+
+```
+PyExecutorHub/
+├── api.py                 # Main FastAPI application entry point
+├── routes/                # API route modules (organized by endpoint)
+│   ├── auth.py           # Authentication routes (/auth)
+│   ├── programs.py       # Program management routes (/programs)
+│   ├── executions.py     # Execution routes (/executions)
+│   ├── containers.py     # Container monitoring routes (/containers)
+│   └── images.py         # Docker image routes (/images)
+├── services/              # Business logic services
+│   ├── auth_service.py   # Authentication service
+│   ├── config_service.py # Configuration management
+│   ├── execution_service.py  # Program execution logic
+│   └── execution_storage.py  # Execution storage management
+├── models/                # Pydantic models
+│   ├── auth_models.py    # Authentication models
+│   ├── execution_models.py  # Execution models
+│   └── program_models.py # Program models
+├── utils/                 # Utility modules
+│   ├── docker_utils.py   # Docker operations
+│   └── log_formatter.py  # Log formatting utilities
+├── scripts/               # Example scripts
+├── bots/                  # Example bots
+├── actions/               # Pre/post execution hooks
+├── config.yaml            # Program configuration
+└── docker-compose.yml     # Docker orchestration
+```
+
+### Benefits of Modular Architecture
+- ✅ **Separation of Concerns**: Each module has a single responsibility
+- ✅ **Easy Maintenance**: Changes to one endpoint don't affect others
+- ✅ **Scalability**: Add new endpoints without modifying core files
+- ✅ **Testability**: Each module can be tested independently
+- ✅ **Reusability**: Services and utilities can be reused across routes
 
 ## 🚀 Installation
 
@@ -223,14 +272,56 @@ The system uses a `config.yaml` file to define available scripts and bots. This 
 
 ```yaml
 scripts:
-  test_script:
-    id: "test_script"
-    name: "Test Script"
-    path: "scripts/test_script"
-    description: "Simple test script to verify PyExecutorHub functionality"
+  # Example 1: Basic script without custom Docker image
+  example_script:
+    id: "example_script"
+    name: "Example Script"
+    path: "scripts/example_script"  # Relative path
+    description: "Example script without custom Docker image"
     enabled: true
     main_file: "main.py"
-    docker_image: "test-script:latest"  # Custom image for this script
+    # docker_image: Not specified, uses default
+    # parameters: Not specified, runs without parameters
+
+  # Example 2: Script with custom Docker image
+  script_with_custom_image:
+    id: "script_with_custom_image"
+    name: "Script with Custom Docker Image"
+    path: "scripts/custom_script"
+    description: "Script that uses a custom Docker image"
+    enabled: true
+    main_file: "run.py"
+    docker_image: "custom-image:latest"  # Custom Docker image
+
+  # Example 3: Script with parameters
+  script_with_parameters:
+    id: "script_with_parameters"
+    name: "Script with Parameters"
+    path: "scripts/parameterized_script"
+    description: "Script that accepts command-line parameters"
+    enabled: true
+    main_file: "main.py"
+    parameters: "--process proceso_2 --verbose"  # Command-line parameters
+
+  # Example 4: External script (requires volume mount)
+  external_script:
+    id: "external_script"
+    name: "External Script"
+    path: "/docker/scripts/external_script"  # Absolute path
+    description: "Script located outside the project directory"
+    enabled: true
+    main_file: "run.py"
+    docker_image: "external-script:latest"
+
+bots:
+  example_bot:
+    id: "example_bot"
+    name: "Example Bot"
+    path: "bots/example_bot"
+    description: "Example bot"
+    enabled: true
+    main_file: "run.py"
+    parameters: "--mode production --verbose"
 
 # General system configuration
 settings:
@@ -239,6 +330,204 @@ settings:
   max_concurrent_executions: 5 
   memory_limit: "1g"    # Recommended: 1GB for most cases
   cpu_limit: "0.5"      # CPU limit per container (50% of one core)
+```
+
+### Configuration Options
+
+#### Required Fields
+- `id`: Unique identifier for the program
+- `name`: Descriptive name
+- `path`: Path to program directory (relative or absolute)
+- `description`: Program description
+- `enabled`: `true` or `false` to enable/disable
+- `main_file`: Main file to execute (`main.py`, `run.py`, `app.js`, etc.)
+
+#### Optional Fields
+- `docker_image`: Custom Docker image (if not specified, uses default)
+- `parameters`: Command-line parameters to pass to the program
+- `path_docker_compose_run`: Path to docker-compose file for docker compose execution (alternative to docker run)
+
+### Docker Compose Execution
+
+PyExecutorHub supports executing programs using `docker compose up` instead of the standard `docker run` method. This is useful for complex multi-container applications or when you need to orchestrate multiple services.
+
+#### Configuration
+
+Add `path_docker_compose_run` to your program configuration:
+
+```yaml
+scripts:
+  docker_compose_script:
+    id: "docker_compose_script"
+    name: "Docker Compose Script"
+    path: "scripts/docker_compose_script"
+    description: "Script that uses docker compose up"
+    enabled: true
+    path_docker_compose_run: "docker-compose.yml"  # Path to docker-compose file
+```
+
+#### How It Works
+
+When `path_docker_compose_run` is present:
+- ✅ The system executes `docker compose -f <path> up` instead of `docker run`
+- ✅ `docker_image` and `main_file` are **ignored** (not used)
+- ✅ The docker-compose file is executed in its directory context
+- ✅ Services are automatically cleaned up with `docker compose down` after execution
+- ✅ All logs and output are captured and returned
+
+#### Path Resolution
+
+The `path_docker_compose_run` can be:
+- **Relative**: Relative to the program's `path` directory
+  ```yaml
+  path: "scripts/my_script"
+  path_docker_compose_run: "docker-compose.yml"  # Resolves to scripts/my_script/docker-compose.yml
+  ```
+- **Absolute**: Full path to the docker-compose file
+  ```yaml
+  path: "scripts/my_script"
+  path_docker_compose_run: "/docker/scripts/my_script/docker-compose.yml"  # Absolute path
+  ```
+
+#### Example: Docker Compose Script
+
+**1. Directory structure:**
+```
+scripts/
+  └── docker_compose_script/
+      ├── docker-compose.yml
+      └── app/
+          └── main.py
+```
+
+**2. docker-compose.yml:**
+```yaml
+version: '3.8'
+services:
+  app:
+    build: .
+    environment:
+      - PROGRAM_ID=${PROGRAM_ID}
+      - EXECUTION_ID=${EXECUTION_ID}
+    volumes:
+      - ./app:/app
+```
+
+**3. config.yaml:**
+```yaml
+scripts:
+  docker_compose_script:
+    id: "docker_compose_script"
+    name: "Docker Compose Script"
+    path: "scripts/docker_compose_script"
+    description: "Multi-container application"
+    enabled: true
+    path_docker_compose_run: "docker-compose.yml"  # Relative to path
+```
+
+#### Important Notes
+
+- **Automatic Cleanup**: The system automatically runs `docker compose down` after execution to clean up services
+- **Timeout Handling**: If execution times out, cleanup is still attempted
+- **Environment Variables**: `PROGRAM_ID` and `EXECUTION_ID` are available in the docker-compose context
+- **Concurrent Limits**: Docker compose executions count towards the concurrent execution limit
+- **Logs**: All output from `docker compose up` is captured and returned in the execution logs
+
+### External Scripts and Bots (Volume Mounting)
+
+If your scripts or bots are located **outside** the PyExecutorHub project directory, you need to mount them as volumes in `docker-compose.yml`.
+
+#### Step 1: Configure the Path in config.yaml
+
+Use an **absolute path** in your configuration:
+
+```yaml
+scripts:
+  external_script:
+    id: "external_script"
+    name: "External Script"
+    path: "/docker/scripts/external_script"  # Absolute path
+    description: "Script located outside project"
+    enabled: true
+    main_file: "run.py"
+    docker_image: "external-script:latest"
+```
+
+#### Step 2: Add Volume to docker-compose.yml
+
+Add the volume mount in the `pyexecutorhub-api` service:
+
+```yaml
+services:
+  pyexecutorhub-api:
+    # ... other configuration ...
+    volumes:
+      - .:/project:ro
+      - ./config.yaml:/app/config.yaml:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /usr/bin/docker:/usr/bin/docker:ro
+      - /docker/scripts:/docker/scripts:ro  # Mount external scripts directory
+```
+
+#### Important Notes
+
+- **Read-Only Mount**: Use `:ro` flag for security (read-only access)
+- **Path Consistency**: The path in `config.yaml` must match the volume mount path
+- **Permissions**: Ensure the Docker container has read permissions for the mounted directory
+- **Multiple Directories**: You can mount multiple external directories:
+
+```yaml
+volumes:
+  - /docker/scripts:/docker/scripts:ro
+  - /external/bots:/external/bots:ro
+  - /custom/path:/custom/path:ro
+```
+
+#### Example: Complete Setup for External Scripts
+
+**1. Directory structure on host:**
+```
+/docker/scripts/
+  ├── extractcredentialsfromemail/
+  │   ├── run.py
+  │   └── .env
+  └── photovalidator/
+      ├── run.py
+      └── requirements.txt
+```
+
+**2. config.yaml:**
+```yaml
+scripts:
+  extractcredentialsfromemail:
+    id: "1"
+    name: "Extractor de creds"
+    path: "/docker/scripts/extractcredentialsfromemail"  # Absolute path
+    description: "Script scrapping de Emails"
+    enabled: true
+    main_file: "run.py"
+    docker_image: "extractcredentialsfromemail:latest"
+
+  photovalidator:
+    id: "18"
+    name: "Screenshot Validator"
+    path: "/docker/scripts/photovalidator"  # Absolute path
+    description: "Valida la imagen"
+    enabled: true
+    main_file: "run.py"
+    docker_image: "photovalidator:latest"
+```
+
+**3. docker-compose.yml:**
+```yaml
+services:
+  pyexecutorhub-api:
+    volumes:
+      - .:/project:ro
+      - ./config.yaml:/app/config.yaml:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /usr/bin/docker:/usr/bin/docker:ro
+      - /docker/scripts:/docker/scripts:ro  # External scripts volume
 ```
 
 ### Real-time Configuration Updates
@@ -251,8 +540,9 @@ The `config.yaml` file is mounted as a volume, which means:
 
 To add a new program:
 1. Edit `config.yaml` and add your program configuration
-2. The new program will be available immediately via the API
-3. No container restart or rebuild needed
+2. If using external scripts, ensure the volume is mounted in `docker-compose.yml`
+3. The new program will be available immediately via the API
+4. No container restart or rebuild needed
 
 ## 📋 Parameterized Execution
 

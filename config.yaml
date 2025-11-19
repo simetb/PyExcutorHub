@@ -2,15 +2,7 @@
 # Maps unique IDs to script and bot paths
 
 scripts:
-  test_script:
-    id: "test_script"
-    name: "Test Script"
-    path: "scripts/test_script"
-    description: "Simple test script to verify PyExecutorHub functionality"
-    enabled: true
-    main_file: "main.py"
-    docker_image: "test-script:latest"  # Custom image for this script
-
+  # Example 1: Basic script without custom Docker image (uses default image)
   example_script:
     id: "example_script"
     name: "Example Script"
@@ -18,9 +10,101 @@ scripts:
     description: "Example script without custom Docker image"
     enabled: true
     main_file: "main.py"
-    parameters: "--process proceso_2"  # Optional parameters to pass to the script
+    # docker_image: Not specified, uses pyexecutorhub-base by default
+    # parameters: Not specified, runs without parameters
+
+  # Example 2: Script with custom Docker image
+  script_with_custom_image:
+    id: "script_with_custom_image"
+    name: "Script with Custom Docker Image"
+    path: "scripts/custom_script"
+    description: "Script that uses a custom Docker image"
+    enabled: true
+    main_file: "run.py"
+    docker_image: "custom-image:latest"  # Custom Docker image
+    # parameters: Not specified
+
+  # Example 3: Script with parameters
+  script_with_parameters:
+    id: "script_with_parameters"
+    name: "Script with Parameters"
+    path: "scripts/parameterized_script"
+    description: "Script that accepts command-line parameters"
+    enabled: true
+    main_file: "main.py"
+    parameters: "--process proceso_2 --verbose"  # Parameters passed to the script
+    # docker_image: Not specified, uses pyexecutorhub-base by default
+
+  # Example 4: Script with custom Docker image AND parameters
+  script_full_config:
+    id: "script_full_config"
+    name: "Script with Full Configuration"
+    path: "scripts/full_script"
+    description: "Script with custom Docker image and parameters"
+    enabled: true
+    main_file: "run.py"
+    docker_image: "my-custom-image:v1.0"  # Custom Docker image
+    parameters: "--mode production --output /tmp/results.json"  # Parameters
+
+  # Example 5: Disabled script
+  disabled_script:
+    id: "disabled_script"
+    name: "Disabled Script"
+    path: "scripts/disabled_script"
+    description: "This script is disabled and won't be executed"
+    enabled: false  # Script disabled
+    main_file: "main.py"
+
+  # Example 6: Script with absolute path (outside the project)
+  external_script:
+    id: "external_script"
+    name: "External Script"
+    path: "/docker/scripts/external_script"  # Absolute path
+    description: "Script located outside the project directory"
+    enabled: true
+    main_file: "run.py"
+    docker_image: "external-script:latest"
+
+  # Example 8: Script using Docker Compose execution
+  docker_compose_script:
+    id: "docker_compose_script"
+    name: "Docker Compose Script"
+    path: "scripts/docker_compose_script"
+    description: "Script that uses docker compose up instead of docker run"
+    enabled: true
+    path_docker_compose_run: "docker-compose.yml"  # Path to docker-compose file (relative to program path)
+    # When path_docker_compose_run is present, docker_image and main_file are ignored
+    # The system will execute: docker compose -f <path> up
+
+  # Example 7: Script with different main file types
+  python_script:
+    id: "python_script"
+    name: "Python Script"
+    path: "scripts/python_script"
+    description: "Python script (main.py)"
+    enabled: true
+    main_file: "main.py"  # Python file
+
+  nodejs_script:
+    id: "nodejs_script"
+    name: "Node.js Script"
+    path: "scripts/nodejs_script"
+    description: "Node.js script (app.js)"
+    enabled: true
+    main_file: "app.js"  # JavaScript file
+    docker_image: "node:18-alpine"  # Node.js image
+
+  shell_script:
+    id: "shell_script"
+    name: "Shell Script"
+    path: "scripts/shell_script"
+    description: "Shell script (script.sh)"
+    enabled: true
+    main_file: "script.sh"  # Shell file
+    parameters: "--config /etc/app.conf"
 
 bots:
+  # Example 1: Basic bot without custom Docker image
   example_bot:
     id: "example_bot"
     name: "Example Bot"
@@ -28,12 +112,73 @@ bots:
     description: "Example bot without custom Docker image"
     enabled: true
     main_file: "run.py"
-    parameters: "--mode production --verbose"  # Optional parameters for the bot
+    # docker_image: Not specified, uses pyexecutorhub-base by default
+    # parameters: Not specified
+
+  # Example 2: Bot with custom Docker image
+  bot_with_custom_image:
+    id: "bot_with_custom_image"
+    name: "Bot with Custom Docker Image"
+    path: "bots/custom_bot"
+    description: "Bot that uses a custom Docker image"
+    enabled: true
+    main_file: "run.py"
+    docker_image: "bot-image:latest"  # Custom Docker image
+
+  # Example 3: Bot with parameters
+  bot_with_parameters:
+    id: "bot_with_parameters"
+    name: "Bot with Parameters"
+    path: "bots/parameterized_bot"
+    description: "Bot that accepts command-line parameters"
+    enabled: true
+    main_file: "run.py"
+    parameters: "--mode production --verbose"  # Parameters
+
+  # Example 4: Bot with custom Docker image AND parameters
+  bot_full_config:
+    id: "bot_full_config"
+    name: "Bot with Full Configuration"
+    path: "bots/full_bot"
+    description: "Bot with custom Docker image and parameters"
+    enabled: true
+    main_file: "run.py"
+    docker_image: "my-bot-image:v2.0"  # Custom Docker image
+    parameters: "--host api.example.com --port 8080"  # Parameters
+
+  # Example 5: Disabled bot
+  disabled_bot:
+    id: "disabled_bot"
+    name: "Disabled Bot"
+    path: "bots/disabled_bot"
+    description: "This bot is disabled and won't be executed"
+    enabled: false  # Bot disabled
+    main_file: "run.py"
+
+  # Example 6: Bot using Docker Compose execution
+  docker_compose_bot:
+    id: "docker_compose_bot"
+    name: "Docker Compose Bot"
+    path: "bots/docker_compose_bot"
+    description: "Bot that uses docker compose up instead of docker run"
+    enabled: true
+    path_docker_compose_run: "docker-compose.yml"  # Path to docker-compose file (relative to bot path)
+    # When path_docker_compose_run is present, docker_image and main_file are ignored
+    # The system will execute: docker compose -f <path> up
 
 # General system configuration
 settings:
+  # Default Docker image for programs without custom image
   docker_image: "pyexecutorhub-base"  # Default image for programs without custom image
+  
+  # Maximum execution time in seconds (300 = 5 minutes, 1500 = 25 minutes)
   timeout_seconds: 300  # 5 minutes default
-  max_concurrent_executions: 5 
+  
+  # Maximum number of concurrent executions
+  max_concurrent_executions: 5
+  
+  # Memory limit per container
   memory_limit: "1g"    # Recommended: 1GB for most cases
-  cpu_limit: "0.5"      # CPU limit per container (50% of one core) 
+  
+  # CPU limit per container (0.5 = 50% of one core)
+  cpu_limit: "0.5"      # CPU limit per container (50% of one core)
