@@ -358,6 +358,9 @@ class ExecutionService:
             
             # Build docker compose command
             # Use 'docker compose' (Docker Compose V2)
+            # NOTA: Para docker compose, los parámetros deben estar definidos directamente
+            # en el docker-compose.yml. Si necesitas diferentes parámetros, crea archivos
+            # docker-compose.yml separados (ej: docker-compose-19.yml, docker-compose-20.yml)
             compose_cmd_base = ["docker", "compose", "-f", str(compose_file_path)]
             
             # Check concurrent execution limits
@@ -371,28 +374,22 @@ class ExecutionService:
             print(f"✅ Concurrent execution check passed ({current_concurrent}/{max_concurrent})")
             
             # Prepare environment variables for docker compose
+            # Para docker compose, NO se parsean parámetros del config.yaml
+            # Se espera que cada configuración tenga su propio docker-compose.yml
+            # con los parámetros ya definidos directamente en el archivo
             compose_env = os.environ.copy()
             compose_env["PROGRAM_ID"] = program_id
             compose_env["EXECUTION_ID"] = execution_id
             
-            # Parse parameters from config.yaml if not provided in request
-            if not parameters:
-                config_params_str = program_config.get("parameters", "")
-                if config_params_str:
-                    print(f"📋 Using parameters from config.yaml: {config_params_str}")
-                    # Parse command-line parameters string (e.g., "--process 19") into dict
-                    parameters = self._parse_parameters_string(config_params_str)
-            
-            # Add parameters as environment variables
-            if parameters:
-                print(f"📋 Parameters to pass: {parameters}")
-                for key, value in parameters.items():
-                    compose_env[f"PARAM_{key.upper()}"] = str(value)
-                    print(f"   - PARAM_{key.upper()}={value}")
+            print(f"📋 Nota: Para docker compose, los parámetros deben estar definidos directamente en el docker-compose.yml")
+            print(f"   Si necesitas diferentes parámetros, crea archivos docker-compose separados")
+            print(f"   (ej: docker-compose-19.yml, docker-compose-20.yml, etc.)")
             
             # Execute docker compose up
             def run_docker_compose():
                 print(f"🔧 Executing docker compose up for {program_id}...")
+                print(f"📂 Working directory: {compose_dir}")
+                print(f"📄 Using compose file: {compose_file_path}")
                 
                 # Change to compose file directory and run docker compose up
                 result = subprocess.run(
