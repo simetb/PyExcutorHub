@@ -23,11 +23,12 @@ services:
       - "8001:8000"
     volumes:
       - .:/project:ro
+      - ./cron:/project/cron:rw
       - ./config.yaml:/app/config.yaml:ro
       - /var/run/docker.sock:/var/run/docker.sock
-      # Optional: Mount Docker binary if needed for Docker-in-Docker scenarios
-      # Uncomment the line below if you need to use Docker commands inside containers
-      # - /usr/bin/docker:/usr/bin/docker:ro
+      # Mount Docker binary and plugins for docker compose commands
+      - /usr/bin/docker:/usr/bin/docker:ro
+      - /usr/libexec/docker/cli-plugins:/usr/libexec/docker/cli-plugins:ro
       # Example: Mount external scripts directory (if using external scripts)
       # - /docker/scripts:/docker/scripts:ro
     env_file:

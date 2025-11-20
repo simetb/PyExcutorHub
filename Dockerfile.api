@@ -14,8 +14,12 @@ COPY requirements.txt .
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy API code
+# Copy API code and required directories
 COPY api.py .
+COPY models/ ./models/
+COPY routes/ ./routes/
+COPY services/ ./services/
+COPY utils/ ./utils/
 
 # Expose port
 EXPOSE 8000

@@ -54,27 +54,30 @@ else
     fi
 fi
 
-# Build JSON body
+# Build JSON body using jq for safe JSON construction
 if [ -n "$PARAMETERS" ]; then
-    JSON_BODY="{\"program_id\": \"$PROGRAM_ID\", \"parameters\": $PARAMETERS}"
+    # If PARAMETERS is provided, try to parse it as JSON and merge with program_id
+    JSON_BODY=$(echo "$PARAMETERS" | jq -c --arg pid "$PROGRAM_ID" '{program_id: $pid, parameters: .}')
+    # If jq fails (PARAMETERS is not valid JSON), treat it as a string parameter
+    if [ $? -ne 0 ]; then
+        JSON_BODY=$(jq -n -c --arg pid "$PROGRAM_ID" --arg params "$PARAMETERS" '{program_id: $pid, parameters: {value: $params}}')
+    fi
 else
-    JSON_BODY="{\"program_id\": \"$PROGRAM_ID\"}"
+    # No parameters, just send program_id with empty parameters dict
+    JSON_BODY=$(jq -n -c --arg pid "$PROGRAM_ID" '{program_id: $pid, parameters: {}}')
 fi
 
-# Build curl command with authentication if token is available
+# Execute program with proper JSON handling
 if [ -n "$TOKEN" ]; then
-    CURL_CMD="curl -s -X POST \"$API_URL/executions\" \
-        -H \"Authorization: Bearer $TOKEN\" \
-        -H \"Content-Type: application/json\" \
-        -d \"$JSON_BODY\""
+    RESPONSE=$(curl -s -X POST "$API_URL/executions" \
+        -H "Authorization: Bearer $TOKEN" \
+        -H "Content-Type: application/json" \
+        -d "$JSON_BODY")
 else
-    CURL_CMD="curl -s -X POST \"$API_URL/execute\" \
-        -H \"Content-Type: application/json\" \
-        -d \"$JSON_BODY\""
+    RESPONSE=$(curl -s -X POST "$API_URL/execute" \
+        -H "Content-Type: application/json" \
+        -d "$JSON_BODY")
 fi
-
-# Execute program
-RESPONSE=$(eval $CURL_CMD)
 
 # Verify response
 if echo "$RESPONSE" | grep -q "execution_id"; then
