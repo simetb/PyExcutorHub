@@ -31,6 +31,38 @@ class ExecutionService:
             return dotenv_values(env_file)
         return {}
     
+    def _parse_parameters_string(self, params_str: str) -> Dict[str, Any]:
+        """Parse command-line parameters string into dictionary
+        
+        Examples:
+            "--process 19" -> {"process": "19"}
+            "--process 19 --verbose" -> {"process": "19", "verbose": True}
+            "--host api.example.com --port 8080" -> {"host": "api.example.com", "port": "8080"}
+        """
+        if not params_str or not params_str.strip():
+            return {}
+        
+        params_dict = {}
+        parts = params_str.split()
+        i = 0
+        while i < len(parts):
+            arg = parts[i]
+            if arg.startswith('--'):
+                # Remove '--' prefix
+                key = arg[2:]
+                # Check if next part is a value (not another flag)
+                if i + 1 < len(parts) and not parts[i + 1].startswith('--'):
+                    params_dict[key] = parts[i + 1]
+                    i += 2
+                else:
+                    # Boolean flag (no value)
+                    params_dict[key] = True
+                    i += 1
+            else:
+                i += 1
+        
+        return params_dict
+    
     
     def _build_container_command(self, program_path: Path, main_file_name: str, parameters: str = "") -> str:
         """Build the command to execute inside the container"""
@@ -342,9 +374,21 @@ class ExecutionService:
             compose_env = os.environ.copy()
             compose_env["PROGRAM_ID"] = program_id
             compose_env["EXECUTION_ID"] = execution_id
+            
+            # Parse parameters from config.yaml if not provided in request
+            if not parameters:
+                config_params_str = program_config.get("parameters", "")
+                if config_params_str:
+                    print(f"📋 Using parameters from config.yaml: {config_params_str}")
+                    # Parse command-line parameters string (e.g., "--process 19") into dict
+                    parameters = self._parse_parameters_string(config_params_str)
+            
+            # Add parameters as environment variables
             if parameters:
+                print(f"📋 Parameters to pass: {parameters}")
                 for key, value in parameters.items():
                     compose_env[f"PARAM_{key.upper()}"] = str(value)
+                    print(f"   - PARAM_{key.upper()}={value}")
             
             # Execute docker compose up
             def run_docker_compose():
